@@ -1,0 +1,1346 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🏆 3D大富翁 · 完整编辑功能 · 答错停顿</title>
+    <!-- jsPDF 与 html2canvas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script><style>body { margin: 0; }</style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { 
+            background: #0f172a; 
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            min-height: 100vh; margin: 0; color: #f8fafc; padding: 6px 0; overflow-y: hidden;
+        }
+        .main-wrapper { display: flex; gap: 14px; width: 1290px; max-width: 98vw; justify-content: center; align-items: flex-start; }
+        .stage { width: 1020px; height: 680px; position: relative; background: #1e293b; box-shadow: 0 30px 60px -10px rgba(0,0,0,0.6); border: 6px solid #334155; border-radius: 12px; overflow: hidden; }
+        .center-area { position: absolute; top: 12.5%; left: 9.09%; right: 9.09%; bottom: 12.5%; z-index: 1; background: #0f172a; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 6px; }
+        #main-bg-image { position: absolute; width: 100%; height: 100%; object-fit: cover; opacity: 0.85; z-index: 1; }
+        .grid-layer { position: absolute; inset: 0; z-index: 10; display: grid; grid-template-columns: repeat(11, 1fr); grid-template-rows: repeat(8, 1fr); pointer-events: none; }
+        .tile { pointer-events: auto; border: 1px solid rgba(0,0,0,0.2); display: flex; flex-direction: column; align-items: center; justify-content: flex-end; position: relative; background: #f8fafc; transition: transform 0.15s; overflow: hidden; color: #1e293b; font-weight: 600; }
+        .tile.empty { background: transparent; border: none; pointer-events: none; }
+        .tile-label { width: 100%; background: #3b82f6; color: white; font-size: 11px; font-weight: 900; padding: 4px 0; text-align: center; white-space: nowrap; letter-spacing: 0.3px; }
+        .tile-icon { font-size: 36px; flex-grow: 1; display: flex; align-items: center; justify-content: center; filter: drop-shadow(0 3px 3px rgba(0,0,0,0.1)); }
+        .tile-start { background: #0f172a !important; color: #fbbf24 !important; border: 2px solid #fbbf24 !important; box-shadow: inset 0 0 20px rgba(251,191,36,0.4); }
+        .tile-start .tile-label { background: #fbbf24; color: #0f172a; }
+        .p-token { width: 40px; height: 40px; border-radius: 50%; border: 3px solid white; position: absolute; z-index: 50; transition: all 0.5s; box-shadow: 0 5px 10px rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; font-size: 20px; font-weight: 900; color: white; text-shadow: 0 2px 4px black; }
+        .side-panel { width: 270px; display: flex; flex-direction: column; gap: 10px; }
+        .admin-bar { display: flex; flex-wrap: wrap; gap: 5px; background: rgba(15,23,42,0.7); backdrop-filter: blur(6px); padding: 8px 6px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.1); }
+        .admin-btn { background: #1e293b; color: #e2e8f0; padding: 6px 4px; border-radius: 8px; font-size: 10px; font-weight: 700; border: none; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.3); flex: 1 0 calc(33.33% - 5px); text-align: center; white-space: nowrap; }
+        .guide-step { background: #1e293b; border-left: 5px solid #3b82f6; padding: 8px 10px; border-radius: 8px; margin-bottom: 6px; opacity: 0.5; }
+        .guide-step.active { opacity: 1; transform: translateX(4px); background: #2d3e5a; border-left-color: #fbbf24; }
+        .step-num { display: inline-block; width: 20px; height: 20px; background: #3b82f6; color: white; border-radius: 50%; text-align: center; font-size: 11px; margin-right: 8px; font-weight: bold; line-height: 20px; }
+        .dice-panel-side { display: none; flex-direction: column; align-items: center; background: rgba(30,41,59,0.95); padding: 16px 12px; border-radius: 18px; border: 1px solid rgba(255,255,255,0.15); width: 100%; }
+        .dice-container { width: 75px; height: 75px; perspective: 700px; margin: 10px 0; position: relative; }
+        .dice { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; transition: transform 1.2s; }
+        .dice-face { position: absolute; width: 75px; height: 75px; background: white; border-radius: 12px; display: grid; grid-template-columns: repeat(3,1fr); grid-template-rows: repeat(3,1fr); padding: 5px; backface-visibility: hidden; border: 1px solid #cbd5e1; }
+        .dot { background: #0f172a; border-radius: 50%; width: 11px; height: 11px; align-self: center; justify-self: center; }
+        .face-1 { transform: rotateY(0deg) translateZ(37.5px); } .face-2 { transform: rotateY(180deg) translateZ(37.5px); } .face-3 { transform: rotateY(90deg) translateZ(37.5px); } .face-4 { transform: rotateY(-90deg) translateZ(37.5px); } .face-5 { transform: rotateX(90deg) translateZ(37.5px); } .face-6 { transform: rotateX(-90deg) translateZ(37.5px); }
+        #step-hint { position: absolute; top: -38px; left: 50%; transform: translateX(-50%) scale(0); background: #fbbf24; color: #0f172a; padding: 5px 12px; border-radius: 30px; font-weight: 900; font-size: 15px; transition: all 0.3s; z-index: 100; white-space: nowrap; }
+        #step-hint.active { transform: translateX(-50%) scale(1); }
+        .modal-panel { position: absolute; inset: 0; z-index: 500; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+        .modal-content { background: #0f172a; width: 90%; max-width: 1100px; border-radius: 20px; padding: 20px; border: 1px solid rgba(255,255,255,0.1); max-height: 85vh; overflow-y: auto; }
+        #quiz-overlay { position: absolute; inset: 0; z-index: 1000; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; }
+        .btn-primary { background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; cursor: pointer; border: none; font-weight: bold; }
+        #penalty-overlay { position: absolute; inset: 0; z-index: 1100; background: rgba(0,0,0,0.85); display: none; flex-direction: column; align-items: center; justify-content: center; }
+        #setup-btns button { width: 40px; height: 40px; font-size: 18px; }
+        #editor-list select { background: #1e293b; border: 1px solid #475569; border-radius: 4px; color: white; padding: 4px; font-size: 12px; }
+        #editor-list select option { background: #0f172a; }
+        .active-player-glow { box-shadow: 0 0 0 2px #fbbf24, 0 0 15px #fbbf24; }
+        .batch-import-area { background: #1e293b; border-radius: 12px; padding: 16px; margin-bottom: 16px; border: 1px dashed #475569; }
+        .batch-textarea { width: 100%; background: #0f172a; border: 1px solid #475569; border-radius: 8px; color: white; font-family: monospace; font-size: 12px; padding: 12px; resize: vertical; min-height: 150px; }
+        .format-hint { background: #334155; border-radius: 8px; padding: 10px; font-size: 11px; color: #cbd5e1; margin: 10px 0; }
+        #lock-screen { z-index: 99999; }
+        .result-table th, .result-table td { padding: 8px 12px; border-bottom: 1px solid #334155; }
+        .correct-badge { background: #10b98120; color: #34d399; padding: 2px 8px; border-radius: 20px; font-size: 11px; }
+        .wrong-badge { background: #f43f5e20; color: #f87171; padding: 2px 8px; border-radius: 20px; font-size: 11px; }
+        .winner-highlight { border: 2px solid #fbbf24; background: #fbbf2410; }
+    </style>
+<style>*, ::before, ::after{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/* ! tailwindcss v3.4.17 | MIT License | https://tailwindcss.com */*,::after,::before{box-sizing:border-box;border-width:0;border-style:solid;border-color:#e5e7eb}::after,::before{--tw-content:''}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;tab-size:4;font-family:ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0;padding:0}legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0px}.right-3{right:0.75rem}.top-0{top:0px}.top-1\/2{top:50%}.mb-1{margin-bottom:0.25rem}.mb-2{margin-bottom:0.5rem}.mb-3{margin-bottom:0.75rem}.mb-4{margin-bottom:1rem}.mb-5{margin-bottom:1.25rem}.mb-6{margin-bottom:1.5rem}.mt-2{margin-top:0.5rem}.mt-3{margin-top:0.75rem}.mt-4{margin-top:1rem}.mt-6{margin-top:1.5rem}.mr-3{margin-right:0.75rem}.block{display:block}.flex{display:flex}.grid{display:grid}.hidden{display:none}.h-6{height:1.5rem}.max-h-\[60vh\]{max-height:60vh}.w-\[380px\]{width:380px}.w-\[450px\]{width:450px}.w-full{width:100%}.w-6{width:1.5rem}.w-16{width:4rem}.max-w-\[350px\]{max-width:350px}.max-w-\[450px\]{max-width:450px}.max-w-md{max-width:28rem}.flex-1{flex:1 1 0%}.-translate-y-1\/2{--tw-translate-y:-50%;transform:translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes bounce{0%, 100%{transform:translateY(-25%);animation-timing-function:cubic-bezier(0.8,0,1,1)}50%{transform:none;animation-timing-function:cubic-bezier(0,0,0.2,1)}}.animate-bounce{animation:bounce 1s infinite}.cursor-not-allowed{cursor:not-allowed}.cursor-pointer{cursor:pointer}.flex-col{flex-direction:column}.items-center{align-items:center}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-2{gap:0.5rem}.gap-3{gap:0.75rem}.space-y-1\.5 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(0.375rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(0.375rem * var(--tw-space-y-reverse))}.space-y-8 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(2rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(2rem * var(--tw-space-y-reverse))}.overflow-x-auto{overflow-x:auto}.rounded{border-radius:0.25rem}.rounded-2xl{border-radius:1rem}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:0.5rem}.rounded-xl{border-radius:0.75rem}.border{border-width:1px}.border-2{border-width:2px}.border-b{border-bottom-width:1px}.border-white\/20{border-color:rgb(255 255 255 / 0.2)}.border-white\/5{border-color:rgb(255 255 255 / 0.05)}.border-yellow-500\/30{border-color:rgb(234 179 8 / 0.3)}.border-slate-700{--tw-border-opacity:1;border-color:rgb(51 65 85 / var(--tw-border-opacity, 1))}.border-blue-500{--tw-border-opacity:1;border-color:rgb(59 130 246 / var(--tw-border-opacity, 1))}.border-green-400{--tw-border-opacity:1;border-color:rgb(74 222 128 / var(--tw-border-opacity, 1))}.border-rose-400{--tw-border-opacity:1;border-color:rgb(251 113 133 / var(--tw-border-opacity, 1))}.border-slate-600{--tw-border-opacity:1;border-color:rgb(71 85 105 / var(--tw-border-opacity, 1))}.bg-amber-500{--tw-bg-opacity:1;background-color:rgb(245 158 11 / var(--tw-bg-opacity, 1))}.bg-amber-600\/10{background-color:rgb(217 119 6 / 0.1)}.bg-black\/95{background-color:rgb(0 0 0 / 0.95)}.bg-blue-600{--tw-bg-opacity:1;background-color:rgb(37 99 235 / var(--tw-bg-opacity, 1))}.bg-blue-600\/10{background-color:rgb(37 99 235 / 0.1)}.bg-blue-600\/20{background-color:rgb(37 99 235 / 0.2)}.bg-emerald-600{--tw-bg-opacity:1;background-color:rgb(5 150 105 / var(--tw-bg-opacity, 1))}.bg-emerald-600\/10{background-color:rgb(5 150 105 / 0.1)}.bg-green-700\/40{background-color:rgb(21 128 61 / 0.4)}.bg-rose-500{--tw-bg-opacity:1;background-color:rgb(244 63 94 / var(--tw-bg-opacity, 1))}.bg-rose-600\/10{background-color:rgb(225 29 72 / 0.1)}.bg-rose-900\/40{background-color:rgb(136 19 55 / 0.4)}.bg-slate-700{--tw-bg-opacity:1;background-color:rgb(51 65 85 / var(--tw-bg-opacity, 1))}.bg-slate-800{--tw-bg-opacity:1;background-color:rgb(30 41 59 / var(--tw-bg-opacity, 1))}.bg-slate-900{--tw-bg-opacity:1;background-color:rgb(15 23 42 / var(--tw-bg-opacity, 1))}.bg-slate-900\/40{background-color:rgb(15 23 42 / 0.4)}.bg-slate-900\/50{background-color:rgb(15 23 42 / 0.5)}.bg-slate-900\/95{background-color:rgb(15 23 42 / 0.95)}.bg-slate-950{--tw-bg-opacity:1;background-color:rgb(2 6 23 / var(--tw-bg-opacity, 1))}.bg-yellow-500{--tw-bg-opacity:1;background-color:rgb(234 179 8 / var(--tw-bg-opacity, 1))}.bg-yellow-500\/10{background-color:rgb(234 179 8 / 0.1)}.bg-green-600\/20{background-color:rgb(22 163 74 / 0.2)}.bg-rose-600{--tw-bg-opacity:1;background-color:rgb(225 29 72 / var(--tw-bg-opacity, 1))}.bg-green-600{--tw-bg-opacity:1;background-color:rgb(22 163 74 / var(--tw-bg-opacity, 1))}.bg-transparent{background-color:transparent}.p-10{padding:2.5rem}.p-2{padding:0.5rem}.p-3{padding:0.75rem}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.px-3{padding-left:0.75rem;padding-right:0.75rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-1{padding-top:0.25rem;padding-bottom:0.25rem}.py-1\.5{padding-top:0.375rem;padding-bottom:0.375rem}.py-2{padding-top:0.5rem;padding-bottom:0.5rem}.py-2\.5{padding-top:0.625rem;padding-bottom:0.625rem}.py-3{padding-top:0.75rem;padding-bottom:0.75rem}.py-4{padding-top:1rem;padding-bottom:1rem}.px-2{padding-left:0.5rem;padding-right:0.5rem}.pr-12{padding-right:3rem}.text-left{text-align:left}.text-center{text-align:center}.font-mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-7xl{font-size:4.5rem;line-height:1}.text-8xl{font-size:6rem;line-height:1}.text-\[10px\]{font-size:10px}.text-\[9px\]{font-size:9px}.text-base{font-size:1rem;line-height:1.5rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:0.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:0.75rem;line-height:1rem}.font-black{font-weight:900}.font-bold{font-weight:700}.uppercase{text-transform:uppercase}.tracking-widest{letter-spacing:0.1em}.text-amber-400{--tw-text-opacity:1;color:rgb(251 191 36 / var(--tw-text-opacity, 1))}.text-blue-300{--tw-text-opacity:1;color:rgb(147 197 253 / var(--tw-text-opacity, 1))}.text-blue-400{--tw-text-opacity:1;color:rgb(96 165 250 / var(--tw-text-opacity, 1))}.text-emerald-400{--tw-text-opacity:1;color:rgb(52 211 153 / var(--tw-text-opacity, 1))}.text-green-200{--tw-text-opacity:1;color:rgb(187 247 208 / var(--tw-text-opacity, 1))}.text-rose-200{--tw-text-opacity:1;color:rgb(254 205 211 / var(--tw-text-opacity, 1))}.text-rose-400{--tw-text-opacity:1;color:rgb(251 113 133 / var(--tw-text-opacity, 1))}.text-rose-500{--tw-text-opacity:1;color:rgb(244 63 94 / var(--tw-text-opacity, 1))}.text-slate-300{--tw-text-opacity:1;color:rgb(203 213 225 / var(--tw-text-opacity, 1))}.text-slate-400{--tw-text-opacity:1;color:rgb(148 163 184 / var(--tw-text-opacity, 1))}.text-slate-500{--tw-text-opacity:1;color:rgb(100 116 139 / var(--tw-text-opacity, 1))}.text-slate-900{--tw-text-opacity:1;color:rgb(15 23 42 / var(--tw-text-opacity, 1))}.text-white{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.text-yellow-400{--tw-text-opacity:1;color:rgb(250 204 21 / var(--tw-text-opacity, 1))}.opacity-50{opacity:0.5}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgb(0 0 0 / 0.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-inner{--tw-shadow:inset 0 2px 4px 0 rgb(0 0 0 / 0.05);--tw-shadow-colored:inset 0 2px 4px 0 var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-lg{--tw-shadow:0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 10px 15px -3px var(--tw-shadow-color), 0 4px 6px -4px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-md{--tw-shadow:0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 4px 6px -1px var(--tw-shadow-color), 0 2px 4px -2px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color), 0 8px 10px -6px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-blue-500\/20{--tw-shadow-color:rgb(59 130 246 / 0.2);--tw-shadow:var(--tw-shadow-colored)}.transition{transition-property:color, background-color, border-color, fill, stroke, opacity, box-shadow, transform, filter, -webkit-text-decoration-color, -webkit-backdrop-filter;transition-property:color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;transition-property:color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter, -webkit-text-decoration-color, -webkit-backdrop-filter;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.transition-all{transition-property:all;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.hover\:bg-blue-500:hover{--tw-bg-opacity:1;background-color:rgb(59 130 246 / var(--tw-bg-opacity, 1))}.hover\:bg-blue-600:hover{--tw-bg-opacity:1;background-color:rgb(37 99 235 / var(--tw-bg-opacity, 1))}.hover\:bg-green-700\/60:hover{background-color:rgb(21 128 61 / 0.6)}.hover\:bg-rose-900\/60:hover{background-color:rgb(136 19 55 / 0.6)}.hover\:bg-slate-600:hover{--tw-bg-opacity:1;background-color:rgb(71 85 105 / var(--tw-bg-opacity, 1))}.hover\:text-white:hover{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.active\:scale-95:active{--tw-scale-x:.95;--tw-scale-y:.95;transform:translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}</style><style>*, ::before, ::after{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/* ! tailwindcss v3.4.17 | MIT License | https://tailwindcss.com */*,::after,::before{box-sizing:border-box;border-width:0;border-style:solid;border-color:#e5e7eb}::after,::before{--tw-content:''}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;tab-size:4;font-family:ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0;padding:0}legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0px}.right-3{right:0.75rem}.top-0{top:0px}.top-1\/2{top:50%}.mb-1{margin-bottom:0.25rem}.mb-2{margin-bottom:0.5rem}.mb-3{margin-bottom:0.75rem}.mb-4{margin-bottom:1rem}.mb-5{margin-bottom:1.25rem}.mb-6{margin-bottom:1.5rem}.mr-3{margin-right:0.75rem}.mt-2{margin-top:0.5rem}.mt-3{margin-top:0.75rem}.mt-4{margin-top:1rem}.mt-6{margin-top:1.5rem}.block{display:block}.flex{display:flex}.grid{display:grid}.hidden{display:none}.h-6{height:1.5rem}.max-h-\[60vh\]{max-height:60vh}.w-16{width:4rem}.w-6{width:1.5rem}.w-\[380px\]{width:380px}.w-\[450px\]{width:450px}.w-full{width:100%}.max-w-\[350px\]{max-width:350px}.max-w-\[450px\]{max-width:450px}.max-w-md{max-width:28rem}.flex-1{flex:1 1 0%}.-translate-y-1\/2{--tw-translate-y:-50%;transform:translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes bounce{0%, 100%{transform:translateY(-25%);animation-timing-function:cubic-bezier(0.8,0,1,1)}50%{transform:none;animation-timing-function:cubic-bezier(0,0,0.2,1)}}.animate-bounce{animation:bounce 1s infinite}.cursor-not-allowed{cursor:not-allowed}.cursor-pointer{cursor:pointer}.flex-col{flex-direction:column}.items-center{align-items:center}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-2{gap:0.5rem}.gap-3{gap:0.75rem}.space-y-1\.5 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(0.375rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(0.375rem * var(--tw-space-y-reverse))}.space-y-8 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(2rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(2rem * var(--tw-space-y-reverse))}.overflow-x-auto{overflow-x:auto}.rounded{border-radius:0.25rem}.rounded-2xl{border-radius:1rem}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:0.5rem}.rounded-xl{border-radius:0.75rem}.border{border-width:1px}.border-2{border-width:2px}.border-b{border-bottom-width:1px}.border-blue-500{--tw-border-opacity:1;border-color:rgb(59 130 246 / var(--tw-border-opacity, 1))}.border-green-400{--tw-border-opacity:1;border-color:rgb(74 222 128 / var(--tw-border-opacity, 1))}.border-rose-400{--tw-border-opacity:1;border-color:rgb(251 113 133 / var(--tw-border-opacity, 1))}.border-slate-600{--tw-border-opacity:1;border-color:rgb(71 85 105 / var(--tw-border-opacity, 1))}.border-slate-700{--tw-border-opacity:1;border-color:rgb(51 65 85 / var(--tw-border-opacity, 1))}.border-white\/20{border-color:rgb(255 255 255 / 0.2)}.border-white\/5{border-color:rgb(255 255 255 / 0.05)}.border-yellow-500\/30{border-color:rgb(234 179 8 / 0.3)}.bg-amber-500{--tw-bg-opacity:1;background-color:rgb(245 158 11 / var(--tw-bg-opacity, 1))}.bg-amber-600\/10{background-color:rgb(217 119 6 / 0.1)}.bg-black\/95{background-color:rgb(0 0 0 / 0.95)}.bg-blue-600{--tw-bg-opacity:1;background-color:rgb(37 99 235 / var(--tw-bg-opacity, 1))}.bg-blue-600\/10{background-color:rgb(37 99 235 / 0.1)}.bg-blue-600\/20{background-color:rgb(37 99 235 / 0.2)}.bg-emerald-600{--tw-bg-opacity:1;background-color:rgb(5 150 105 / var(--tw-bg-opacity, 1))}.bg-emerald-600\/10{background-color:rgb(5 150 105 / 0.1)}.bg-green-600\/20{background-color:rgb(22 163 74 / 0.2)}.bg-green-700\/40{background-color:rgb(21 128 61 / 0.4)}.bg-rose-500{--tw-bg-opacity:1;background-color:rgb(244 63 94 / var(--tw-bg-opacity, 1))}.bg-rose-600{--tw-bg-opacity:1;background-color:rgb(225 29 72 / var(--tw-bg-opacity, 1))}.bg-rose-600\/10{background-color:rgb(225 29 72 / 0.1)}.bg-rose-900\/40{background-color:rgb(136 19 55 / 0.4)}.bg-slate-700{--tw-bg-opacity:1;background-color:rgb(51 65 85 / var(--tw-bg-opacity, 1))}.bg-slate-800{--tw-bg-opacity:1;background-color:rgb(30 41 59 / var(--tw-bg-opacity, 1))}.bg-slate-900{--tw-bg-opacity:1;background-color:rgb(15 23 42 / var(--tw-bg-opacity, 1))}.bg-slate-900\/40{background-color:rgb(15 23 42 / 0.4)}.bg-slate-900\/50{background-color:rgb(15 23 42 / 0.5)}.bg-slate-900\/95{background-color:rgb(15 23 42 / 0.95)}.bg-slate-950{--tw-bg-opacity:1;background-color:rgb(2 6 23 / var(--tw-bg-opacity, 1))}.bg-transparent{background-color:transparent}.bg-yellow-500{--tw-bg-opacity:1;background-color:rgb(234 179 8 / var(--tw-bg-opacity, 1))}.bg-yellow-500\/10{background-color:rgb(234 179 8 / 0.1)}.p-10{padding:2.5rem}.p-2{padding:0.5rem}.p-3{padding:0.75rem}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.px-2{padding-left:0.5rem;padding-right:0.5rem}.px-3{padding-left:0.75rem;padding-right:0.75rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-1{padding-top:0.25rem;padding-bottom:0.25rem}.py-1\.5{padding-top:0.375rem;padding-bottom:0.375rem}.py-2{padding-top:0.5rem;padding-bottom:0.5rem}.py-2\.5{padding-top:0.625rem;padding-bottom:0.625rem}.py-3{padding-top:0.75rem;padding-bottom:0.75rem}.py-4{padding-top:1rem;padding-bottom:1rem}.pr-12{padding-right:3rem}.text-left{text-align:left}.text-center{text-align:center}.font-mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-7xl{font-size:4.5rem;line-height:1}.text-8xl{font-size:6rem;line-height:1}.text-\[10px\]{font-size:10px}.text-\[9px\]{font-size:9px}.text-base{font-size:1rem;line-height:1.5rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:0.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:0.75rem;line-height:1rem}.font-black{font-weight:900}.font-bold{font-weight:700}.uppercase{text-transform:uppercase}.tracking-widest{letter-spacing:0.1em}.text-amber-400{--tw-text-opacity:1;color:rgb(251 191 36 / var(--tw-text-opacity, 1))}.text-blue-300{--tw-text-opacity:1;color:rgb(147 197 253 / var(--tw-text-opacity, 1))}.text-blue-400{--tw-text-opacity:1;color:rgb(96 165 250 / var(--tw-text-opacity, 1))}.text-emerald-400{--tw-text-opacity:1;color:rgb(52 211 153 / var(--tw-text-opacity, 1))}.text-green-200{--tw-text-opacity:1;color:rgb(187 247 208 / var(--tw-text-opacity, 1))}.text-rose-200{--tw-text-opacity:1;color:rgb(254 205 211 / var(--tw-text-opacity, 1))}.text-rose-400{--tw-text-opacity:1;color:rgb(251 113 133 / var(--tw-text-opacity, 1))}.text-rose-500{--tw-text-opacity:1;color:rgb(244 63 94 / var(--tw-text-opacity, 1))}.text-slate-300{--tw-text-opacity:1;color:rgb(203 213 225 / var(--tw-text-opacity, 1))}.text-slate-400{--tw-text-opacity:1;color:rgb(148 163 184 / var(--tw-text-opacity, 1))}.text-slate-500{--tw-text-opacity:1;color:rgb(100 116 139 / var(--tw-text-opacity, 1))}.text-slate-900{--tw-text-opacity:1;color:rgb(15 23 42 / var(--tw-text-opacity, 1))}.text-white{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.text-yellow-400{--tw-text-opacity:1;color:rgb(250 204 21 / var(--tw-text-opacity, 1))}.opacity-50{opacity:0.5}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgb(0 0 0 / 0.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-inner{--tw-shadow:inset 0 2px 4px 0 rgb(0 0 0 / 0.05);--tw-shadow-colored:inset 0 2px 4px 0 var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-lg{--tw-shadow:0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 10px 15px -3px var(--tw-shadow-color), 0 4px 6px -4px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-md{--tw-shadow:0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 4px 6px -1px var(--tw-shadow-color), 0 2px 4px -2px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color), 0 8px 10px -6px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-blue-500\/20{--tw-shadow-color:rgb(59 130 246 / 0.2);--tw-shadow:var(--tw-shadow-colored)}.transition{transition-property:color, background-color, border-color, fill, stroke, opacity, box-shadow, transform, filter, -webkit-text-decoration-color, -webkit-backdrop-filter;transition-property:color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;transition-property:color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter, -webkit-text-decoration-color, -webkit-backdrop-filter;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.transition-all{transition-property:all;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.hover\:bg-blue-500:hover{--tw-bg-opacity:1;background-color:rgb(59 130 246 / var(--tw-bg-opacity, 1))}.hover\:bg-blue-600:hover{--tw-bg-opacity:1;background-color:rgb(37 99 235 / var(--tw-bg-opacity, 1))}.hover\:bg-green-700\/60:hover{background-color:rgb(21 128 61 / 0.6)}.hover\:bg-rose-900\/60:hover{background-color:rgb(136 19 55 / 0.6)}.hover\:bg-slate-600:hover{--tw-bg-opacity:1;background-color:rgb(71 85 105 / var(--tw-bg-opacity, 1))}.hover\:text-white:hover{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.active\:scale-95:active{--tw-scale-x:.95;--tw-scale-y:.95;transform:translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}</style></head>
+<body>
+
+<!-- 系统锁定遮罩 -->
+<div id="lock-screen" class="fixed inset-0 bg-black/95 flex-col items-center justify-center text-white text-center p-10" style="display: none; z-index: 99999;">
+    <div class="text-7xl mb-6 animate-bounce">🚫</div>
+    <h1 class="text-4xl font-black mb-4">系统已锁定</h1>
+    <p class="text-lg text-slate-400 mb-6">密码输入错误次数过多，系统已进入保护状态。</p>
+    <button onclick="(function(){ localStorage.removeItem('systemLocked'); location.reload(); })()" class="mt-6 bg-slate-700 hover:bg-slate-600 text-white px-5 py-2 rounded-lg text-sm">🔓 紧急重置</button>
+</div>
+
+<div class="main-wrapper">
+    <div class="stage" id="game-stage">
+        <div class="center-area"><img id="main-bg-image" src="https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/f/797447a9-8952-4ae1-8177-e13df0d8956d/dh2t8lm-cad724bd-8029-4c02-9996-71212ef8c1c4.jpg/v1/fill/w_894,h_894,q_70,strp/_60ebd372_8249_4181_9ad2_ae0cb952dde7_by_aiprofilepictures_dh2t8lm-pre.jpg?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1cm46YXBwOjdlMGQxODg5ODIyNjQzNzNhNWYwZDQxNWVhMGQyNmUwIiwiaXNzIjoidXJuOmFwcDo3ZTBkMTg4OTgyMjY0MzczYTVmMGQ0MTVlYTBkMjZlMCIsIm9iaiI6W1t7ImhlaWdodCI6Ijw9MTAyNCIsInBhdGgiOiJcL2ZcLzc5NzQ0N2E5LTg5NTItNGFlMS04MTc3LWUxM2RmMGQ4OTU2ZFwvZGgydDhsbS1jYWQ3MjRiZC04MDI5LTRjMDItOTk5Ni03MTIxMmVmOGMxYzQuanBnIiwid2lkdGgiOiI8PTEwMjQifV1dLCJhdWQiOlsidXJuOnNlcnZpY2U6aW1hZ2Uub3BlcmF0aW9ucyJdfQ.vsnCS1fA15fAJx63Zb0_1_tsU1vusPkjl6I0P8iAbxE" alt="背景"></div>
+        <div id="quiz-overlay" style="display: none;">
+            <div class="bg-slate-900/95 w-[450px] p-5 rounded-2xl border border-white/20 shadow-2xl">
+                <div class="flex justify-between items-center mb-3"><span id="q-score" class="bg-yellow-500 text-slate-900 px-3 py-1 rounded-full text-xs font-black">奖励积分: +20</span><span id="q-idx" class="text-slate-400 font-mono text-xs">TILE 3</span></div>
+                <h2 id="q-title" class="text-xl font-black text-white mb-4">My pencil is __________ because I have used it a lot.</h2>
+                <div id="q-options" class="grid gap-3"><div class="bg-slate-800 p-3 rounded-xl cursor-pointer border-2 border-slate-700 flex items-center border-blue-500 bg-blue-600/20 bg-rose-600 border-rose-400"><span class="bg-slate-950 w-6 h-6 rounded-full flex items-center justify-center mr-3 text-xs">A</span>long</div><div class="bg-slate-800 p-3 rounded-xl cursor-pointer border-2 border-slate-700 flex items-center border-green-400 bg-green-600/20"><span class="bg-slate-950 w-6 h-6 rounded-full flex items-center justify-center mr-3 text-xs">B</span>short</div><div class="bg-slate-800 p-3 rounded-xl cursor-pointer border-2 border-slate-700 flex items-center"><span class="bg-slate-950 w-6 h-6 rounded-full flex items-center justify-center mr-3 text-xs">C</span>tall</div><div class="bg-slate-800 p-3 rounded-xl cursor-pointer border-2 border-slate-700 flex items-center"><span class="bg-slate-950 w-6 h-6 rounded-full flex items-center justify-center mr-3 text-xs">D</span>fat</div></div>
+                <div id="quiz-feedback" class="mt-4 p-3 rounded-xl text-center font-black text-sm">❌ 答错！正确答案是：short</div>
+                <button id="q-btn" onclick="handleQuizSubmit()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-black text-base mt-4 shadow-lg shadow-blue-500/20 transition-all active:scale-95" disabled="">继续游戏</button>
+            </div>
+        </div>
+        <div id="board-grid" class="grid-layer"><div id="tile-0" class="tile tile-start"><div class="tile-icon">🏛️</div><div class="tile-label">起点</div></div><div id="tile-1" class="tile "><div class="tile-icon">🏯</div><div class="tile-label">挑战1</div></div><div id="tile-2" class="tile "><div class="tile-icon">🏰</div><div class="tile-label">挑战2</div></div><div id="tile-3" class="tile "><div class="tile-icon">🏢</div><div class="tile-label">挑战3</div></div><div id="tile-4" class="tile "><div class="tile-icon">🏬</div><div class="tile-label">挑战4</div></div><div id="tile-5" class="tile "><div class="tile-icon">🏘️</div><div class="tile-label">挑战5</div></div><div id="tile-6" class="tile "><div class="tile-icon">🏡</div><div class="tile-label">挑战6</div></div><div id="tile-7" class="tile "><div class="tile-icon">🏫</div><div class="tile-label">挑战7</div></div><div id="tile-8" class="tile "><div class="tile-icon">🏦</div><div class="tile-label">挑战8</div></div><div id="tile-9" class="tile "><div class="tile-icon">🏥</div><div class="tile-label">挑战9</div></div><div id="tile-10" class="tile "><div class="tile-icon">🏨</div><div class="tile-label">挑战10</div></div><div id="tile-33" class="tile "><div class="tile-icon">🏪</div><div class="tile-label">挑战33</div></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div id="tile-11" class="tile "><div class="tile-icon">🏪</div><div class="tile-label">挑战11</div></div><div id="tile-32" class="tile "><div class="tile-icon">🏨</div><div class="tile-label">挑战32</div></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div id="tile-12" class="tile "><div class="tile-icon">🏭</div><div class="tile-label">挑战12</div></div><div id="tile-31" class="tile "><div class="tile-icon">🏥</div><div class="tile-label">挑战31</div></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div id="tile-13" class="tile "><div class="tile-icon">🕋</div><div class="tile-label">挑战13</div></div><div id="tile-30" class="tile "><div class="tile-icon">🏦</div><div class="tile-label">挑战30</div></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div id="tile-14" class="tile "><div class="tile-icon">🕍</div><div class="tile-label">挑战14</div></div><div id="tile-29" class="tile "><div class="tile-icon">🏫</div><div class="tile-label">挑战29</div></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div id="tile-15" class="tile "><div class="tile-icon">🕌</div><div class="tile-label">挑战15</div></div><div id="tile-28" class="tile "><div class="tile-icon">🏡</div><div class="tile-label">挑战28</div></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div class="tile empty"></div><div id="tile-16" class="tile "><div class="tile-icon">⛪</div><div class="tile-label">挑战16</div></div><div id="tile-27" class="tile "><div class="tile-icon">🏘️</div><div class="tile-label">挑战27</div></div><div id="tile-26" class="tile "><div class="tile-icon">🏬</div><div class="tile-label">挑战26</div></div><div id="tile-25" class="tile "><div class="tile-icon">🏢</div><div class="tile-label">挑战25</div></div><div id="tile-24" class="tile "><div class="tile-icon">🏰</div><div class="tile-label">挑战24</div></div><div id="tile-23" class="tile "><div class="tile-icon">🏯</div><div class="tile-label">挑战23</div></div><div id="tile-22" class="tile "><div class="tile-icon">🏛️</div><div class="tile-label">挑战22</div></div><div id="tile-21" class="tile "><div class="tile-icon">🏙️</div><div class="tile-label">挑战21</div></div><div id="tile-20" class="tile "><div class="tile-icon">🗽</div><div class="tile-label">挑战20</div></div><div id="tile-19" class="tile "><div class="tile-icon">🗼</div><div class="tile-label">挑战19</div></div><div id="tile-18" class="tile "><div class="tile-icon">🏟️</div><div class="tile-label">挑战18</div></div><div id="tile-17" class="tile "><div class="tile-icon">🎪</div><div class="tile-label">挑战17</div></div></div>
+        <div id="token-1" class="p-token bg-blue-600" style="display: none; opacity: 1; top: -6.3px; left: 166.742px;">1</div><div id="token-2" class="p-token bg-rose-500" style="display: none; opacity: 1; top: -6.3px; left: 14.5903px;">2</div><div id="token-3" class="p-token bg-emerald-600" style="display: none; opacity: 1;">3</div><div id="token-4" class="p-token bg-amber-500" style="display: none; opacity: 1;">4</div>
+        <div id="penalty-overlay" style="display: none;"><div class="text-center"><h2 class="text-4xl font-black text-white mb-4">⏳ 答错了！暂停5秒</h2><div id="penalty-countdown" class="text-8xl font-black text-blue-400">0</div></div></div>
+    </div>
+
+    <div class="side-panel">
+        <div class="admin-bar">
+            <button onclick="requestAccess('editor-modal')" class="admin-btn">⚙️ 编辑题目</button>
+            <button onclick="requestAccess('bg-modal')" class="admin-btn">🖼️ 更换背景</button>
+            <button onclick="requestAccess('change-pass-modal')" class="admin-btn">🔑 修改密码</button>
+            <button onclick="exportGameHTML()" class="admin-btn bg-green-700/40 text-green-200 hover:bg-green-700/60">💾 导出HTML</button>
+            <button onclick="executeReset()" class="admin-btn bg-rose-900/40 text-rose-200 hover:bg-rose-900/60">🔄 重置游戏</button>
+        </div>
+        <div id="setup-btns" class="bg-slate-900/40 p-3 rounded-2xl text-center" style="display: block;">
+            <span class="text-yellow-400 text-xs font-black block mb-2">👉 选择人数开始</span>
+            <div class="flex gap-2 justify-center">
+                <button onclick="initGame(1)" class="rounded-xl bg-blue-600/20 text-blue-300 font-black hover:bg-blue-600 hover:text-white transition">1</button>
+                <button onclick="initGame(2)" class="rounded-xl bg-blue-600/20 text-blue-300 font-black hover:bg-blue-600 hover:text-white transition">2</button>
+                <button onclick="initGame(3)" class="rounded-xl bg-blue-600/20 text-blue-300 font-black hover:bg-blue-600 hover:text-white transition">3</button>
+                <button onclick="initGame(4)" class="rounded-xl bg-blue-600/20 text-blue-300 font-black hover:bg-blue-600 hover:text-white transition">4</button>
+            </div>
+        </div>
+        <div id="guide-panel" class="bg-slate-900/50 border border-white/5 rounded-2xl p-3">
+            <h3 class="text-slate-400 text-[9px] font-black uppercase mb-1 tracking-widest">当前步骤</h3>
+            <div id="step-1" class="guide-step active"><span class="step-num">1</span><span class="text-xs text-white font-bold">选择人数开始</span></div>
+            <div id="step-2" class="guide-step"><span class="step-num">2</span><span class="text-xs text-white font-bold">点击投掷骰子</span></div>
+            <div id="step-3" class="guide-step"><span class="step-num">3</span><span class="text-xs text-white font-bold">回答问题积分</span></div>
+        </div>
+        <div id="score-board" class="space-y-1.5 hidden">
+            <div id="s1-box" class="bg-blue-600/10 p-2 rounded-xl border flex justify-between"><div><p class="text-[9px] font-black text-blue-400">P1 积分</p><p id="s1" class="text-xl font-black">0</p></div><div id="t1" class="text-[10px] font-mono text-slate-400">00:32</div></div>
+            <div id="s2-box" class="bg-rose-600/10 p-2 rounded-xl border flex justify-between active-player-glow"><div><p class="text-[9px] font-black text-rose-400">P2 积分</p><p id="s2" class="text-xl font-black">0</p></div><div id="t2" class="text-[10px] font-mono text-slate-400">00:14</div></div>
+            <div id="s3-box" class="bg-emerald-600/10 p-2 rounded-xl border flex justify-between hidden"><div><p class="text-[9px] font-black text-emerald-400">P3 积分</p><p id="s3" class="text-xl font-black">0</p></div><div id="t3" class="text-[10px] font-mono text-slate-400">00:00</div></div>
+            <div id="s4-box" class="bg-amber-600/10 p-2 rounded-xl border flex justify-between hidden"><div><p class="text-[9px] font-black text-amber-400">P4 积分</p><p id="s4" class="text-xl font-black">0</p></div><div id="t4" class="text-[10px] font-mono text-slate-400">00:00</div></div>
+        </div>
+        <div id="dice-panel" class="dice-panel-side" style="display: none;">
+            <div id="p-label" class="mb-2 px-4 py-1.5 rounded-lg text-white text-xs font-black uppercase text-center w-full shadow-inner" style="background-color: rgb(244, 63, 94);">⚡ P2 回合</div>
+            <div class="dice-container"><div id="step-hint" class="">前进 3 步！</div>
+                <div id="dice" class="dice" style="transform: rotateX(0deg) rotateY(0deg);">
+                    <div class="dice-face face-1"><div class="dot" style="grid-area:2/2;"></div></div><div class="dice-face face-2"><div class="dot" style="grid-area:1/1;"></div><div class="dot" style="grid-area:3/3;"></div></div><div class="dice-face face-3"><div class="dot" style="grid-area:1/1;"></div><div class="dot" style="grid-area:2/2;"></div><div class="dot" style="grid-area:3/3;"></div></div><div class="dice-face face-4"><div class="dot" style="grid-area:1/1;"></div><div class="dot" style="grid-area:1/3;"></div><div class="dot" style="grid-area:3/1;"></div><div class="dot" style="grid-area:3/3;"></div></div><div class="dice-face face-5"><div class="dot" style="grid-area:1/1;"></div><div class="dot" style="grid-area:1/3;"></div><div class="dot" style="grid-area:2/2;"></div><div class="dot" style="grid-area:3/1;"></div><div class="dot" style="grid-area:3/3;"></div></div><div class="dice-face face-6"><div class="dot" style="grid-area:1/1;"></div><div class="dot" style="grid-area:2/1;"></div><div class="dot" style="grid-area:3/1;"></div><div class="dot" style="grid-area:1/3;"></div><div class="dot" style="grid-area:2/3;"></div><div class="dot" style="grid-area:3/3;"></div></div>
+                </div>
+            </div>
+            <button id="roll-btn" onclick="rollDice()" class="btn-primary w-full text-white py-2.5 rounded-xl font-black text-sm uppercase shadow-xl">🎲 投掷骰子</button>
+        </div>
+    </div>
+</div>
+
+<!-- 管理员验证模态框 -->
+<div id="auth-modal" class="modal-panel" style="display: none; z-index: 5000;">
+    <div class="bg-slate-900 p-6 rounded-2xl text-center w-[380px]">
+        <h3 class="text-xl font-black text-white mb-2">管理员权限验证</h3>
+        <p id="auth-hint" class="text-xs text-slate-500 mb-4">剩余重试次数: 5</p>
+        <div class="relative mb-4">
+            <input type="password" id="admin-pass" class="w-full bg-slate-950 p-4 pr-12 rounded-xl text-white text-center" placeholder="请输入密码" onkeydown="if(event.key==='Enter') verifyAccess()">
+            <button onclick="togglePasswordVisibility()" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-xl"><span id="eye-icon">👁️</span></button>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="closePanel('auth-modal')" class="flex-1 bg-slate-800 text-slate-400 py-3 rounded-xl">取消</button>
+            <button id="auth-submit-btn" onclick="verifyAccess()" class="flex-1 btn-primary text-white py-3 rounded-xl">验证密码</button>
+        </div>
+        <div id="auth-error-msg" class="mt-3 text-rose-500 text-xs hidden">密码错误，请重试</div>
+    </div>
+</div>
+
+<!-- 游戏结束模态框 (强制PDF下载) -->
+<div id="finish-modal" class="modal-panel" style="display: none;">
+    <div class="modal-content" style="max-width: 1200px;" id="transcript-content">
+        <h1 class="text-3xl font-black text-white mb-6 text-center">🏆 游戏结束</h1>
+        <div id="winner-announce" class="text-center mb-6 p-4 bg-yellow-500/10 rounded-2xl border border-yellow-500/30"></div>
+        <div id="detail-container" class="space-y-8"></div>
+        <div class="flex flex-col items-center gap-3 mt-6">
+            <button id="download-pdf-btn" onclick="downloadTranscriptPDF()" class="btn-primary text-white px-8 py-4 rounded-xl font-black text-lg shadow-xl w-full max-w-md">📄 下载成绩单 (PDF) </button>
+            <p class="text-slate-400 text-xs">必须保存PDF后才能关闭或重玩</p>
+            <div class="flex gap-3 w-full max-w-md">
+                <button id="close-finish-btn" onclick="tryCloseFinishModal()" class="flex-1 bg-slate-700 text-slate-300 py-3 rounded-xl font-bold opacity-50 cursor-not-allowed" disabled="">关闭窗口</button>
+                <button id="replay-finish-btn" onclick="tryReplay()" class="flex-1 bg-slate-700 text-slate-300 py-3 rounded-xl font-bold opacity-50 cursor-not-allowed" disabled="">🔄 再玩一次</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑器模态框（完整批量导入） -->
+<div id="editor-modal" class="modal-panel" style="display: none;">
+    <div class="modal-content" style="max-width: 1100px;">
+        <div class="flex justify-between items-center mb-4"><h2 class="text-2xl font-black text-white">⚙️ 表格化题库管理</h2><button onclick="closePanel('editor-modal')" class="text-slate-500 hover:text-white text-2xl">✕</button></div>
+        
+        <div class="batch-import-area">
+            <div class="flex justify-between items-center mb-2">
+                <h3 class="text-white font-bold text-sm">📋 批量粘贴导入（支持字母/数字答案）</h3>
+                <button id="toggle-batch-btn" onclick="toggleBatchImport()" class="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-1 rounded">显示/隐藏</button>
+            </div>
+            <div id="batch-import-panel" style="display: none;">
+                <div class="format-hint">
+                    <p class="font-bold mb-1">📌 粘贴格式（Tab分隔）</p>
+                    <code class="text-blue-300">题目内容 &nbsp;&nbsp; 选项A &nbsp;&nbsp; 选项B &nbsp;&nbsp; 选项C &nbsp;&nbsp; 选项D &nbsp;&nbsp; 答案(A/B/C/D 或 0/1/2/3) &nbsp;&nbsp; 分值</code>
+                </div>
+                <textarea id="batch-data-textarea" class="batch-textarea" placeholder="从Excel复制后粘贴..."></textarea>
+                <div class="flex gap-2 mt-3">
+                    <button onclick="parseAndImportBatch()" class="btn-primary text-white px-4 py-2 rounded-lg text-sm font-bold">⬇️ 解析并填充表格</button>
+                    <button onclick="clearBatchTextarea()" class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm">清空</button>
+                </div>
+                <div id="batch-feedback" class="text-xs mt-2 text-slate-400"></div>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto rounded-xl bg-slate-950 max-h-[60vh]">
+            <table class="w-full text-left text-xs">
+                <thead class="sticky top-0 bg-slate-900 shadow-md"><tr class="text-slate-300 text-xs"><th class="p-2">ID</th><th class="p-2">题目</th><th class="p-2">A</th><th class="p-2">B</th><th class="p-2">C</th><th class="p-2">D</th><th class="p-2">答案</th><th class="p-2">积分</th></tr></thead>
+                <tbody id="editor-list"><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">0</td><td class="p-2"><input value="起点" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="0"></td><td class="p-2"><input value="A" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="0"></td><td class="p-2"><input value="B" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="0"></td><td class="p-2"><input value="C" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="0"></td><td class="p-2"><input value="D" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="0"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="0"><option value="0">A</option><option value="1">B</option><option value="2" selected="">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="0" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="0"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">1</td><td class="p-2"><input value="The giant’s shoes were very __________." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="1"></td><td class="p-2"><input value="small" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="1"></td><td class="p-2"><input value="huge" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="1"></td><td class="p-2"><input value="short" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="1"></td><td class="p-2"><input value="thin" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="1"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="1"><option value="0">A</option><option value="1" selected="">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="1"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">2</td><td class="p-2"><input value="I cannot lift this box because it is too __________." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="2"></td><td class="p-2"><input value="heavy" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="2"></td><td class="p-2"><input value="light" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="2"></td><td class="p-2"><input value="soft" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="2"></td><td class="p-2"><input value="fast" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="2"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="2"><option value="0" selected="">A</option><option value="1">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="2"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">3</td><td class="p-2"><input value="My pencil is __________ because I have used it a lot." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="3"></td><td class="p-2"><input value="long" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="3"></td><td class="p-2"><input value="tall" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="3"></td><td class="p-2"><input value="short" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="3"></td><td class="p-2"><input value="fat" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="3"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="3"><option value="0">A</option><option value="1">B</option><option value="2" selected="">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="3"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">4</td><td class="p-2"><input value="That mountain is very __________. It touches the clouds." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="4"></td><td class="p-2"><input value="low" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="4"></td><td class="p-2"><input value="high" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="4"></td><td class="p-2"><input value="flat" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="4"></td><td class="p-2"><input value="wide" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="4"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="4"><option value="0">A</option><option value="1" selected="">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="4"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">5</td><td class="p-2"><input value="A needle is very __________." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="5"></td><td class="p-2"><input value="thick" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="5"></td><td class="p-2"><input value="thin" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="5"></td><td class="p-2"><input value="big" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="5"></td><td class="p-2"><input value="fat" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="5"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="5"><option value="0">A</option><option value="1" selected="">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="5"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">6</td><td class="p-2"><input value="Can you pass me the __________ book? It has 500 pages!" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="6"></td><td class="p-2"><input value="thin" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="6"></td><td class="p-2"><input value="thick" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="6"></td><td class="p-2"><input value="light" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="6"></td><td class="p-2"><input value="small" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="6"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="6"><option value="0">A</option><option value="1" selected="">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="6"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">7</td><td class="p-2"><input value="The baby is __________. She cannot reach the table." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="7"></td><td class="p-2"><input value="tall" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="7"></td><td class="p-2"><input value="short" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="7"></td><td class="p-2"><input value="big " class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="7"></td><td class="p-2"><input value="long" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="7"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="7"><option value="0">A</option><option value="1" selected="">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="7"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">8</td><td class="p-2"><input value="An ocean is __________. A puddle is small." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="8"></td><td class="p-2"><input value="wide" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="8"></td><td class="p-2"><input value="narrow" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="8"></td><td class="p-2"><input value="tiny" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="8"></td><td class="p-2"><input value="short" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="8"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="8"><option value="0" selected="">A</option><option value="1">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="8"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">9</td><td class="p-2"><input value="The __________ apple is sweet and ready to eat." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="9"></td><td class="p-2"><input value="red" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="9"></td><td class="p-2"><input value="blue" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="9"></td><td class="p-2"><input value="purple" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="9"></td><td class="p-2"><input value="black" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="9"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="9"><option value="0" selected="">A</option><option value="1">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="9"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">10</td><td class="p-2"><input value="The lemon is __________." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="10"></td><td class="p-2"><input value="green" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="10"></td><td class="p-2"><input value="yellow" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="10"></td><td class="p-2"><input value="pink" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="10"></td><td class="p-2"><input value="brown" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="10"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="10"><option value="0">A</option><option value="1" selected="">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="10"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">11</td><td class="p-2"><input value="The snow is __________." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="11"></td><td class="p-2"><input value="white" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="11"></td><td class="p-2"><input value="grey" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="11"></td><td class="p-2"><input value="dark" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="11"></td><td class="p-2"><input value="red" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="11"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="11"><option value="0" selected="">A</option><option value="1">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="11"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">12</td><td class="p-2"><input value="The night sky is __________." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="12"></td><td class="p-2"><input value="bright" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="12"></td><td class="p-2"><input value="dark" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="12"></td><td class="p-2"><input value="white" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="12"></td><td class="p-2"><input value="yellow" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="12"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="12"><option value="0">A</option><option value="1" selected="">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="12"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">13</td><td class="p-2"><input value="Look at the __________ leaf! It is falling from the tree." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="13"></td><td class="p-2"><input value="orange" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="13"></td><td class="p-2"><input value="blue" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="13"></td><td class="p-2"><input value="pink" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="13"></td><td class="p-2"><input value="white" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="13"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="13"><option value="0" selected="">A</option><option value="1">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="13"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">14</td><td class="p-2"><input value="My uniform is __________." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="14"></td><td class="p-2"><input value="purple" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="14"></td><td class="p-2"><input value="white" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="14"></td><td class="p-2"><input value="gold" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="14"></td><td class="p-2"><input value="silver" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="14"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="14"><option value="0">A</option><option value="1" selected="">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="14"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">15</td><td class="p-2"><input value="The sun is __________." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="15"></td><td class="p-2"><input value="red" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="15"></td><td class="p-2"><input value="black" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="15"></td><td class="p-2"><input value="bright" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="15"></td><td class="p-2"><input value="pale" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="15"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="15"><option value="0">A</option><option value="1">B</option><option value="2" selected="">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="15"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">16</td><td class="p-2"><input value="Cherries are __________." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="16"></td><td class="p-2"><input value="green" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="16"></td><td class="p-2"><input value="red" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="16"></td><td class="p-2"><input value="orange" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="16"></td><td class="p-2"><input value="yellow" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="16"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="16"><option value="0">A</option><option value="1" selected="">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="16"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">17</td><td class="p-2"><input value="A door is usually __________." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="17"></td><td class="p-2"><input value="round" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="17"></td><td class="p-2"><input value="square" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="17"></td><td class="p-2"><input value="rectangle" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="17"></td><td class="p-2"><input value="triangle" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="17"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="17"><option value="0">A</option><option value="1">B</option><option value="2" selected="">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="17"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">18</td><td class="p-2"><input value="A bicycle wheel is __________." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="18"></td><td class="p-2"><input value="circle" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="18"></td><td class="p-2"><input value="square" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="18"></td><td class="p-2"><input value="triangle" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="18"></td><td class="p-2"><input value="oval" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="18"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="18"><option value="0" selected="">A</option><option value="1">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="18"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">19</td><td class="p-2"><input value="This cookie is shaped like a __________. It has three sides." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="19"></td><td class="p-2"><input value="square" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="19"></td><td class="p-2"><input value="circle" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="19"></td><td class="p-2"><input value="triangle" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="19"></td><td class="p-2"><input value="rectangle" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="19"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="19"><option value="0">A</option><option value="1">B</option><option value="2" selected="">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="19"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">20</td><td class="p-2"><input value="A box has a __________ shape." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="20"></td><td class="p-2"><input value="round" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="20"></td><td class="p-2"><input value="square" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="20"></td><td class="p-2"><input value="oval" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="20"></td><td class="p-2"><input value="flat" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="20"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="20"><option value="0">A</option><option value="1" selected="">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="20"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">21</td><td class="p-2"><input value="An egg is __________." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="21"></td><td class="p-2"><input value="round" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="21"></td><td class="p-2"><input value="oval" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="21"></td><td class="p-2"><input value="square" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="21"></td><td class="p-2"><input value="straight" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="21"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="21"><option value="0">A</option><option value="1" selected="">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="21"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">22</td><td class="p-2"><input value="The road is __________. It does not turn." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="22"></td><td class="p-2"><input value="straight" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="22"></td><td class="p-2"><input value="curvy" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="22"></td><td class="p-2"><input value="round" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="22"></td><td class="p-2"><input value="square" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="22"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="22"><option value="0" selected="">A</option><option value="1">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="22"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">23</td><td class="p-2"><input value="The snake is __________. It is not straight." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="23"></td><td class="p-2"><input value="curvy" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="23"></td><td class="p-2"><input value="flat" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="23"></td><td class="p-2"><input value="square" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="23"></td><td class="p-2"><input value="solid" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="23"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="23"><option value="0" selected="">A</option><option value="1">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="23"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">24</td><td class="p-2"><input value="A star is __________." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="24"></td><td class="p-2"><input value="round" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="24"></td><td class="p-2"><input value="pointed" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="24"></td><td class="p-2"><input value="flat" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="24"></td><td class="p-2"><input value="wide" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="24"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="24"><option value="0">A</option><option value="1" selected="">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="24"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">25</td><td class="p-2"><input value="The clown’s face is very __________. It makes me laugh." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="25"></td><td class="p-2"><input value="sad" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="25"></td><td class="p-2"><input value="funny" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="25"></td><td class="p-2"><input value="angry" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="25"></td><td class="p-2"><input value="mean" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="25"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="25"><option value="0">A</option><option value="1" selected="">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="25"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">26</td><td class="p-2"><input value="My clothes are __________ after playing in the mud." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="26"></td><td class="p-2"><input value="clean" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="26"></td><td class="p-2"><input value="dirty" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="26"></td><td class="p-2"><input value="new" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="26"></td><td class="p-2"><input value="bright" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="26"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="26"><option value="0">A</option><option value="1" selected="">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="26"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">27</td><td class="p-2"><input value="The princess looks very __________ in her dress." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="27"></td><td class="p-2"><input value="ugly" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="27"></td><td class="p-2"><input value="beautiful" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="27"></td><td class="p-2"><input value="messy" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="27"></td><td class="p-2"><input value="scary" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="27"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="27"><option value="0">A</option><option value="1" selected="">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="27"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">28</td><td class="p-2"><input value="Be careful! That knife is very __________." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="28"></td><td class="p-2"><input value="blunt" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="28"></td><td class="p-2"><input value="sharp" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="28"></td><td class="p-2"><input value="soft" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="28"></td><td class="p-2"><input value="flat" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="28"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="28"><option value="0">A</option><option value="1" selected="">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="28"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">29</td><td class="p-2"><input value="The teddy bear is soft and __________." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="29"></td><td class="p-2"><input value="hard" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="29"></td><td class="p-2"><input value="cuddly" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="29"></td><td class="p-2"><input value="rough" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="29"></td><td class="p-2"><input value="sharp" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="29"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="29"><option value="0">A</option><option value="1" selected="">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="29"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">30</td><td class="p-2"><input value="The classroom is __________ because the students are sitting quietly." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="30"></td><td class="p-2"><input value="noisy" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="30"></td><td class="p-2"><input value="quiet" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="30"></td><td class="p-2"><input value="messy" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="30"></td><td class="p-2"><input value="scary" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="30"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="30"><option value="0">A</option><option value="1" selected="">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="30"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">31</td><td class="p-2"><input value="Your shoes look __________. You just bought them!" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="31"></td><td class="p-2"><input value="old" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="31"></td><td class="p-2"><input value="new" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="31"></td><td class="p-2"><input value="dirty" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="31"></td><td class="p-2"><input value="torn" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="31"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="31"><option value="0">A</option><option value="1" selected="">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="31"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">32</td><td class="p-2"><input value="The witch in the story looks very __________." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="32"></td><td class="p-2"><input value="kind" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="32"></td><td class="p-2"><input value="scary" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="32"></td><td class="p-2"><input value="happy" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="32"></td><td class="p-2"><input value="beautiful" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="32"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="32"><option value="0">A</option><option value="1" selected="">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="32"></td></tr><tr class="border-b border-white/5"><td class="p-2 text-slate-500 text-center">33</td><td class="p-2"><input value="My brother is very __________ when he wakes up." class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="33"></td><td class="p-2"><input value="happy" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="33"></td><td class="p-2"><input value="sleepy" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="33"></td><td class="p-2"><input value="hungry" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="33"></td><td class="p-2"><input value="noisy" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="33"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="33"><option value="0">A</option><option value="1" selected="">B</option><option value="2">C</option><option value="3">D</option></select></td><td class="p-2"><input type="number" value="20" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="33"></td></tr></tbody>
+            </table>
+        </div>
+        <div class="text-xs text-slate-500 mt-2 flex justify-between items-center">
+            <span>💡 格子标签固定为“挑战X”，此处编辑的问题仅影响弹窗内容。</span>
+            <button onclick="saveGameData()" class="btn-primary text-white px-6 py-2 rounded-lg font-bold text-sm">💾 保存并应用</button>
+        </div>
+    </div>
+</div>
+
+<!-- 更换背景模态框 -->
+<div id="bg-modal" class="modal-panel" style="display: none;"><div class="modal-content max-w-[450px]"><div class="flex justify-between items-center mb-4"><h2 class="text-xl font-black text-white">🖼️ 更换背景</h2><button onclick="closePanel('bg-modal')" class="text-slate-500 hover:text-white text-2xl">✕</button></div><input id="bg-input" class="w-full bg-slate-950 p-3 rounded-xl text-white mb-4" placeholder="图片URL"><button onclick="applyBackground()" class="w-full btn-primary py-3 rounded-xl">应用背景</button></div></div>
+<!-- 修改密码模态框 -->
+<div id="change-pass-modal" class="modal-panel" style="display: none;"><div class="modal-content max-w-[350px]"><div class="flex justify-between items-center mb-5"><h2 class="text-xl font-black text-white">修改密码</h2><button onclick="closePanel('change-pass-modal')" class="text-slate-500 hover:text-white text-2xl">✕</button></div><input id="new-pass-input" type="password" class="w-full bg-slate-950 p-3 rounded-xl text-white text-center mb-4" placeholder="新密码 (至少4位)"><button onclick="saveNewPass()" class="w-full btn-primary py-3 rounded-xl">确认修改</button></div></div>
+
+<script>
+    (function(){
+        // ---------- 全局配置 ----------
+        const COLS = 11, ROWS = 8, TOTAL_TILES = (COLS + ROWS) * 2 - 4;
+        
+        let currentAdminPass = localStorage.getItem('adminPass') || "0987";
+        let isAuthed = sessionStorage.getItem('isAuthed') === 'true';
+        let failedAttempts = 0;
+        const MAX_ATTEMPTS = 5;
+        let isWaitInProgress = false;
+        let pendingModal = null;
+        let timerInterval = null;
+        let penaltyTimer = null;
+        let pdfDownloaded = false;
+        
+        // 核心题库 (可编辑)
+        let gameData = [
+    {
+        "id": 0,
+        "title": "起点",
+        "score": 0,
+        "options": [
+            "A",
+            "B",
+            "C",
+            "D"
+        ],
+        "correctIdx": 2,
+        "icon": "🏛️"
+    },
+    {
+        "id": 1,
+        "title": "The giant’s shoes were very __________.",
+        "score": 20,
+        "options": [
+            "11111",
+            "huge",
+            "short",
+            "thin"
+        ],
+        "correctIdx": 1,
+        "icon": "🏯"
+    },
+    {
+        "id": 2,
+        "title": "I cannot lift this box because it is too __________.",
+        "score": 20,
+        "options": [
+            "heavy",
+            "light",
+            "soft",
+            "fast"
+        ],
+        "correctIdx": 0,
+        "icon": "🏰"
+    },
+    {
+        "id": 3,
+        "title": "My pencil is __________ because I have used it a lot.",
+        "score": 20,
+        "options": [
+            "long",
+            "tall",
+            "short",
+            "fat"
+        ],
+        "correctIdx": 2,
+        "icon": "🏢"
+    },
+    {
+        "id": 4,
+        "title": "That mountain is very __________. It touches the clouds.",
+        "score": 20,
+        "options": [
+            "low",
+            "high",
+            "flat",
+            "wide"
+        ],
+        "correctIdx": 1,
+        "icon": "🏬"
+    },
+    {
+        "id": 5,
+        "title": "A needle is very __________.",
+        "score": 20,
+        "options": [
+            "thick",
+            "thin",
+            "big",
+            "fat"
+        ],
+        "correctIdx": 1,
+        "icon": "🏘️"
+    },
+    {
+        "id": 6,
+        "title": "Can you pass me the __________ book? It has 500 pages!",
+        "score": 20,
+        "options": [
+            "thin",
+            "thick",
+            "light",
+            "small"
+        ],
+        "correctIdx": 1,
+        "icon": "🏡"
+    },
+    {
+        "id": 7,
+        "title": "The baby is __________. She cannot reach the table.",
+        "score": 20,
+        "options": [
+            "tall",
+            "short",
+            "big ",
+            "long"
+        ],
+        "correctIdx": 1,
+        "icon": "🏫"
+    },
+    {
+        "id": 8,
+        "title": "An ocean is __________. A puddle is small.",
+        "score": 20,
+        "options": [
+            "wide",
+            "narrow",
+            "tiny",
+            "short"
+        ],
+        "correctIdx": 0,
+        "icon": "🏦"
+    },
+    {
+        "id": 9,
+        "title": "The __________ apple is sweet and ready to eat.",
+        "score": 20,
+        "options": [
+            "red",
+            "blue",
+            "purple",
+            "black"
+        ],
+        "correctIdx": 0,
+        "icon": "🏥"
+    },
+    {
+        "id": 10,
+        "title": "The lemon is __________.",
+        "score": 20,
+        "options": [
+            "green",
+            "yellow",
+            "pink",
+            "brown"
+        ],
+        "correctIdx": 1,
+        "icon": "🏨"
+    },
+    {
+        "id": 11,
+        "title": "The snow is __________.",
+        "score": 20,
+        "options": [
+            "white",
+            "grey",
+            "dark",
+            "red"
+        ],
+        "correctIdx": 0,
+        "icon": "🏪"
+    },
+    {
+        "id": 12,
+        "title": "The night sky is __________.",
+        "score": 20,
+        "options": [
+            "bright",
+            "dark",
+            "white",
+            "yellow"
+        ],
+        "correctIdx": 1,
+        "icon": "🏭"
+    },
+    {
+        "id": 13,
+        "title": "Look at the __________ leaf! It is falling from the tree.",
+        "score": 20,
+        "options": [
+            "orange",
+            "blue",
+            "pink",
+            "white"
+        ],
+        "correctIdx": 0,
+        "icon": "🕋"
+    },
+    {
+        "id": 14,
+        "title": "My uniform is __________.",
+        "score": 20,
+        "options": [
+            "purple",
+            "white",
+            "gold",
+            "silver"
+        ],
+        "correctIdx": 1,
+        "icon": "🕍"
+    },
+    {
+        "id": 15,
+        "title": "The sun is __________.",
+        "score": 20,
+        "options": [
+            "red",
+            "black",
+            "bright",
+            "pale"
+        ],
+        "correctIdx": 2,
+        "icon": "🕌"
+    },
+    {
+        "id": 16,
+        "title": "Cherries are __________.",
+        "score": 20,
+        "options": [
+            "green",
+            "red",
+            "orange",
+            "yellow"
+        ],
+        "correctIdx": 1,
+        "icon": "⛪"
+    },
+    {
+        "id": 17,
+        "title": "A door is usually __________.",
+        "score": 20,
+        "options": [
+            "round",
+            "square",
+            "rectangle",
+            "triangle"
+        ],
+        "correctIdx": 2,
+        "icon": "🎪"
+    },
+    {
+        "id": 18,
+        "title": "A bicycle wheel is __________.",
+        "score": 20,
+        "options": [
+            "circle",
+            "square",
+            "triangle",
+            "oval"
+        ],
+        "correctIdx": 0,
+        "icon": "🏟️"
+    },
+    {
+        "id": 19,
+        "title": "This cookie is shaped like a __________. It has three sides.",
+        "score": 20,
+        "options": [
+            "square",
+            "circle",
+            "triangle",
+            "rectangle"
+        ],
+        "correctIdx": 2,
+        "icon": "🗼"
+    },
+    {
+        "id": 20,
+        "title": "A box has a __________ shape.",
+        "score": 20,
+        "options": [
+            "round",
+            "square",
+            "oval",
+            "flat"
+        ],
+        "correctIdx": 1,
+        "icon": "🗽"
+    },
+    {
+        "id": 21,
+        "title": "An egg is __________.",
+        "score": 20,
+        "options": [
+            "round",
+            "oval",
+            "square",
+            "straight"
+        ],
+        "correctIdx": 1,
+        "icon": "🏙️"
+    },
+    {
+        "id": 22,
+        "title": "The road is __________. It does not turn.",
+        "score": 20,
+        "options": [
+            "straight",
+            "curvy",
+            "round",
+            "square"
+        ],
+        "correctIdx": 0,
+        "icon": "🏛️"
+    },
+    {
+        "id": 23,
+        "title": "The snake is __________. It is not straight.",
+        "score": 20,
+        "options": [
+            "curvy",
+            "flat",
+            "square",
+            "solid"
+        ],
+        "correctIdx": 0,
+        "icon": "🏯"
+    },
+    {
+        "id": 24,
+        "title": "A star is __________.",
+        "score": 20,
+        "options": [
+            "round",
+            "pointed",
+            "flat",
+            "wide"
+        ],
+        "correctIdx": 1,
+        "icon": "🏰"
+    },
+    {
+        "id": 25,
+        "title": "The clown’s face is very __________. It makes me laugh.",
+        "score": 20,
+        "options": [
+            "sad",
+            "funny",
+            "angry",
+            "mean"
+        ],
+        "correctIdx": 1,
+        "icon": "🏢"
+    },
+    {
+        "id": 26,
+        "title": "My clothes are __________ after playing in the mud.",
+        "score": 20,
+        "options": [
+            "clean",
+            "dirty",
+            "new",
+            "bright"
+        ],
+        "correctIdx": 1,
+        "icon": "🏬"
+    },
+    {
+        "id": 27,
+        "title": "The princess looks very __________ in her dress.",
+        "score": 20,
+        "options": [
+            "ugly",
+            "beautiful",
+            "messy",
+            "scary"
+        ],
+        "correctIdx": 1,
+        "icon": "🏘️"
+    },
+    {
+        "id": 28,
+        "title": "Be careful! That knife is very __________.",
+        "score": 20,
+        "options": [
+            "blunt",
+            "sharp",
+            "soft",
+            "flat"
+        ],
+        "correctIdx": 1,
+        "icon": "🏡"
+    },
+    {
+        "id": 29,
+        "title": "The teddy bear is soft and __________.",
+        "score": 20,
+        "options": [
+            "hard",
+            "cuddly",
+            "rough",
+            "sharp"
+        ],
+        "correctIdx": 1,
+        "icon": "🏫"
+    },
+    {
+        "id": 30,
+        "title": "The classroom is __________ because the students are sitting quietly.",
+        "score": 20,
+        "options": [
+            "noisy",
+            "quiet",
+            "messy",
+            "scary"
+        ],
+        "correctIdx": 1,
+        "icon": "🏦"
+    },
+    {
+        "id": 31,
+        "title": "Your shoes look __________. You just bought them!",
+        "score": 20,
+        "options": [
+            "old",
+            "new",
+            "dirty",
+            "torn"
+        ],
+        "correctIdx": 1,
+        "icon": "🏥"
+    },
+    {
+        "id": 32,
+        "title": "The witch in the story looks very __________.",
+        "score": 20,
+        "options": [
+            "kind",
+            "scary",
+            "happy",
+            "beautiful"
+        ],
+        "correctIdx": 1,
+        "icon": "🏨"
+    },
+    {
+        "id": 33,
+        "title": "My brother is very __________ when he wakes up.",
+        "score": 20,
+        "options": [
+            "happy",
+            "sleepy",
+            "hungry",
+            "noisy"
+        ],
+        "correctIdx": 1,
+        "icon": "🏪"
+    }
+];
+        
+        let players=[], turn=0, isMoving=false, isPenaltyActive=false, selectedIdx=-1, currentQuizPool=[];
+
+        // 辅助函数
+        function formatTime(s){ return `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`; }
+        function updateGuideStep(id){ document.querySelectorAll('.guide-step').forEach(s=>s.classList.remove('active')); document.getElementById(`step-${id}`)?.classList.add('active'); }
+        
+        window.togglePasswordVisibility = ()=>{ let i=document.getElementById('admin-pass'), e=document.getElementById('eye-icon'); i.type = i.type==='password'?'text':'password'; e.innerText = i.type==='password'?'👁️':'🙈'; };
+        window.openPanel = id => document.getElementById(id).style.display='flex';
+        window.closePanel = id => document.getElementById(id).style.display='none';
+        
+        window.requestAccess = function(id){
+            if(localStorage.getItem('systemLocked')==='true'){ 
+                document.getElementById('lock-screen').style.display='flex'; 
+                return; 
+            }
+            if(isAuthed){ 
+                openPanel(id); 
+                if(id==='editor-modal') populateEditor(); 
+            } else { 
+                pendingModal=id; 
+                document.getElementById('admin-pass').value=''; 
+                document.getElementById('admin-pass').disabled = false;
+                document.getElementById('auth-error-msg').classList.add('hidden'); 
+                document.getElementById('auth-hint').innerText = `剩余重试次数: ${MAX_ATTEMPTS - failedAttempts}`;
+                document.getElementById('auth-submit-btn').innerText = '验证密码';
+                document.getElementById('auth-submit-btn').classList.remove('opacity-50');
+                openPanel('auth-modal'); 
+            }
+        };
+        
+        window.verifyAccess = function(){
+            if(isWaitInProgress) return;
+            let pwd = document.getElementById('admin-pass').value;
+            let btn = document.getElementById('auth-submit-btn');
+            let err = document.getElementById('auth-error-msg');
+            
+            if(pwd === currentAdminPass){
+                isAuthed = true;
+                sessionStorage.setItem('isAuthed','true');
+                failedAttempts = 0;
+                closePanel('auth-modal');
+                if(pendingModal) {
+                    if(pendingModal === 'editor-modal') populateEditor();
+                    openPanel(pendingModal);
+                }
+            } else {
+                failedAttempts++;
+                document.getElementById('admin-pass').disabled = true;
+                err.classList.remove('hidden');
+                
+                if(failedAttempts >= MAX_ATTEMPTS){
+                    localStorage.setItem('systemLocked','true');
+                    document.getElementById('lock-screen').style.display='flex';
+                    closePanel('auth-modal');
+                    return;
+                }
+                
+                isWaitInProgress = true;
+                btn.classList.add('opacity-50');
+                let cd = 5;
+                let t = setInterval(()=>{
+                    cd--;
+                    btn.innerText = `锁定中 (${cd}s)`;
+                    if(cd <= 0){
+                        clearInterval(t);
+                        isWaitInProgress = false;
+                        document.getElementById('admin-pass').disabled = false;
+                        btn.classList.remove('opacity-50');
+                        btn.innerText = '验证密码';
+                        document.getElementById('auth-hint').innerText = `剩余重试次数: ${MAX_ATTEMPTS - failedAttempts}`;
+                    }
+                }, 1000);
+            }
+        };
+        
+        window.saveNewPass = function(){
+            let v = document.getElementById('new-pass-input').value;
+            if(v.length < 4) { alert('密码至少需要4位'); return; }
+            localStorage.setItem('adminPass', v);
+            currentAdminPass = v;
+            closePanel('change-pass-modal');
+            alert('密码已修改');
+        };
+
+        // ---------- 游戏重置 (软重置，不刷新页面) ----------
+        function softResetGame() {
+            if(timerInterval) clearInterval(timerInterval);
+            if(penaltyTimer) clearInterval(penaltyTimer);
+            timerInterval = null;
+            penaltyTimer = null;
+            
+            document.querySelectorAll('.modal-panel').forEach(p => p.style.display = 'none');
+            document.getElementById('quiz-overlay').style.display = 'none';
+            document.getElementById('penalty-overlay').style.display = 'none';
+            
+            isMoving = false;
+            isPenaltyActive = false;
+            players = [];
+            turn = 0;
+            pdfDownloaded = false;
+            
+            for(let i=1; i<=4; i++) {
+                document.getElementById(`token-${i}`).style.display = 'none';
+                document.getElementById(`token-${i}`).style.opacity = '1';
+            }
+            
+            document.getElementById('setup-btns').style.display = 'block';
+            document.getElementById('score-board').classList.add('hidden');
+            document.getElementById('dice-panel').style.display = 'none';
+            
+            updateGuideStep(1);
+            document.getElementById('dice').style.transform = 'rotateX(0deg) rotateY(0deg)';
+            
+            const rollBtn = document.getElementById('roll-btn');
+            if(rollBtn) {
+                rollBtn.disabled = false;
+                rollBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        window.executeReset = function() {
+            if (confirm('确定要重置游戏吗？当前进度将丢失。')) {
+                softResetGame();
+            }
+        };
+
+        // 导出完整HTML
+        window.exportGameHTML = function() {
+            let exportData = gameData;
+            if (document.getElementById('editor-modal').style.display === 'flex') {
+                if (confirm('使用当前编辑器表格中的内容导出？')) {
+                    exportData = collectLatestGameDataFromEditor();
+                }
+            }
+            const currentBg = document.getElementById('main-bg-image').src;
+            const currentPass = currentAdminPass;
+            
+            let htmlContent = document.documentElement.outerHTML;
+            const gameDataRegex = /let gameData =[\s\S]*?;\n/;
+            htmlContent = htmlContent.replace(gameDataRegex, `let gameData = ${JSON.stringify(exportData, null, 4)};\n`);
+            const bgRegex = /localStorage\.getItem\('monopolyBg'\) \|\| "([^"]*)"/;
+            htmlContent = htmlContent.replace(bgRegex, `localStorage.getItem('monopolyBg') || "https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/f/797447a9-8952-4ae1-8177-e13df0d8956d/dh2t8lm-cad724bd-8029-4c02-9996-71212ef8c1c4.jpg/v1/fill/w_894,h_894,q_70,strp/_60ebd372_8249_4181_9ad2_ae0cb952dde7_by_aiprofilepictures_dh2t8lm-pre.jpg?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1cm46YXBwOjdlMGQxODg5ODIyNjQzNzNhNWYwZDQxNWVhMGQyNmUwIiwiaXNzIjoidXJuOmFwcDo3ZTBkMTg4OTgyMjY0MzczYTVmMGQ0MTVlYTBkMjZlMCIsIm9iaiI6W1t7ImhlaWdodCI6Ijw9MTAyNCIsInBhdGgiOiJcL2ZcLzc5NzQ0N2E5LTg5NTItNGFlMS04MTc3LWUxM2RmMGQ4OTU2ZFwvZGgydDhsbS1jYWQ3MjRiZC04MDI5LTRjMDItOTk5Ni03MTIxMmVmOGMxYzQuanBnIiwid2lkdGgiOiI8PTEwMjQifV1dLCJhdWQiOlsidXJuOnNlcnZpY2U6aW1hZ2Uub3BlcmF0aW9ucyJdfQ.vsnCS1fA15fAJx63Zb0_1_tsU1vusPkjl6I0P8iAbxE"`);
+            const passRegex = /let currentAdminPass = localStorage\.getItem\('adminPass'\) \|\| "([^"]*)"/;
+            htmlContent = htmlContent.replace(passRegex, `let currentAdminPass = localStorage.getItem('adminPass') || "${currentPass}"`);
+            
+            const blob = new Blob(['<!DOCTYPE html>\n' + htmlContent], { type: 'text/html' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `大富翁_${new Date().toISOString().slice(0,10)}.html`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+            alert('✅ 游戏已导出！包含当前题库、背景和密码设置。');
+        };
+
+        function collectLatestGameDataFromEditor() {
+            const rows = document.querySelectorAll('#editor-list tr');
+            const newData = JSON.parse(JSON.stringify(gameData));
+            rows.forEach(row => {
+                const idx = parseInt(row.querySelector('[data-field="title"]')?.dataset.idx ?? -1);
+                if (idx === -1) return;
+                const title = row.querySelector('[data-field="title"]').value;
+                const opts = [
+                    row.querySelector('[data-field="opt0"]').value,
+                    row.querySelector('[data-field="opt1"]').value,
+                    row.querySelector('[data-field="opt2"]').value,
+                    row.querySelector('[data-field="opt3"]').value
+                ];
+                const ans = parseInt(row.querySelector('[data-field="answer"]').value);
+                const score = parseInt(row.querySelector('[data-field="score"]').value) || 0;
+                newData[idx] = { ...newData[idx], title, options: opts, correctIdx: ans, score };
+            });
+            return newData;
+        }
+
+        // ---------- 游戏初始化 ----------
+        window.initGame = function(n){
+            if(penaltyTimer) clearInterval(penaltyTimer);
+            if(timerInterval) clearInterval(timerInterval);
+            isPenaltyActive = false;
+            isMoving = false;
+            document.getElementById('penalty-overlay').style.display = 'none';
+            
+            document.getElementById('setup-btns').style.display='none'; 
+            document.getElementById('score-board').classList.remove('hidden'); 
+            document.getElementById('dice-panel').style.display='flex';
+            players=[]; 
+            for(let i=1;i<=4;i++){ 
+                document.getElementById(`token-${i}`).style.display='none'; 
+                document.getElementById(`s${i}-box`).classList.add('hidden'); 
+                document.getElementById(`token-${i}`).style.opacity = '1';
+            }
+            for(let i=0;i<n;i++){ 
+                let c=['#3b82f6','#f43f5e','#10b981','#f59e0b'][i]; 
+                players.push({
+                    id:i+1, pos:0, score:0, finished:false, el:`token-${i+1}`, color:c, time:0, mustWait:false,
+                    answers: []  
+                }); 
+                document.getElementById(`token-${i+1}`).style.display='flex'; 
+                document.getElementById(`s${i+1}-box`).classList.remove('hidden'); 
+            }
+            turn=0; pdfDownloaded = false;
+            startMasterTimer(); 
+            updateUI(); 
+            updateGuideStep(2);
+            const rollBtn = document.getElementById('roll-btn');
+            rollBtn.disabled = false;
+            rollBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            document.getElementById('dice').style.transform = 'rotateX(0deg) rotateY(0deg)';
+        };
+        
+        // 计时器：仅累加当前回合玩家的秒数
+        function startMasterTimer(){ 
+            if(timerInterval) clearInterval(timerInterval); 
+            timerInterval=setInterval(()=>{ 
+                if(players.length > 0) {
+                    let currentPlayer = players[turn];
+                    if(currentPlayer && !currentPlayer.finished) {
+                        currentPlayer.time++;
+                        document.getElementById(`t${currentPlayer.id}`).innerText = formatTime(currentPlayer.time);
+                    }
+                }
+            }, 1000); 
+        }
+        
+        window.rollDice = function(){ 
+            if(isMoving || isPenaltyActive) return; 
+            if(!players.length || !players[turn]) return;
+            let p=players[turn]; 
+            isMoving=true; 
+            let rollBtn = document.getElementById('roll-btn');
+            rollBtn.disabled=true; 
+            let num = Math.floor(Math.random()*6) + 1;
+            let dice = document.getElementById('dice');
+            let hint = document.getElementById('step-hint'); 
+            hint.classList.remove('active'); 
+            
+            const baseAngles = {
+                1: { x: 0, y: 0 }, 2: { x: 0, y: 180 }, 3: { x: 0, y: -90 },
+                4: { x: 0, y: 90 }, 5: { x: -90, y: 0 }, 6: { x: 90, y: 0 }
+            };
+            const randomTurnsX = (Math.floor(Math.random() * 4) + 3) * 360;
+            const randomTurnsY = (Math.floor(Math.random() * 4) + 3) * 360;
+            const finalX = randomTurnsX + baseAngles[num].x;
+            const finalY = randomTurnsY + baseAngles[num].y;
+            dice.style.transform = `rotateX(${finalX}deg) rotateY(${finalY}deg)`;
+            
+            setTimeout(()=>{ 
+                hint.innerText = `前进 ${num} 步！`; 
+                hint.classList.add('active'); 
+                setTimeout(()=>{ hint.classList.remove('active'); startMove(num); }, 800); 
+            }, 1200); 
+        };
+        
+        async function startMove(steps){ 
+            let p=players[turn]; 
+            for(let i=0;i<steps;i++){ 
+                p.pos++; 
+                if(p.pos>=TOTAL_TILES){ p.pos=TOTAL_TILES-1; p.finished=true; updateUI(); 
+                    setTimeout(()=>{ document.getElementById(p.el).style.opacity='0.4'; finishTurn(); },600); return; 
+                } 
+                updateUI(); await new Promise(r=>setTimeout(r,500)); 
+            } 
+            showQuiz(gameData[p.pos]); 
+        }
+        
+        function showQuiz(d){ 
+            if(d.id===0){ finishTurn(); return; } 
+            updateGuideStep(3); selectedIdx=-1; 
+            let o=document.getElementById('quiz-overlay'), btn=document.getElementById('q-btn'), fb=document.getElementById('quiz-feedback'); 
+            fb.classList.add('hidden'); btn.innerText='确认提交答案'; btn.disabled=true; btn.classList.add('opacity-50','cursor-not-allowed'); 
+            document.getElementById('q-score').innerText=`奖励积分: +${d.score}`; 
+            document.getElementById('q-idx').innerText=`TILE ${d.id}`; 
+            document.getElementById('q-title').innerText=d.title;
+            let correct=d.options[d.correctIdx], wrongs=d.options.filter((_,i)=>i!==d.correctIdx); 
+            currentQuizPool=[{text:correct,isCorrect:true},...wrongs.map(t=>({text:t,isCorrect:false}))].sort(()=>0.5-Math.random()); 
+            let cont=document.getElementById('q-options'); cont.innerHTML=''; 
+            currentQuizPool.forEach((opt,i)=>{ 
+                let div=document.createElement('div'); div.className="bg-slate-800 p-3 rounded-xl cursor-pointer border-2 border-slate-700 flex items-center"; 
+                div.innerHTML=`<span class="bg-slate-950 w-6 h-6 rounded-full flex items-center justify-center mr-3 text-xs">${String.fromCharCode(65+i)}</span>${opt.text}`; 
+                div.onclick=()=>{ if(btn.innerText==='继续游戏') return; [...cont.children].forEach(c=>{c.classList.remove('border-blue-500','bg-blue-600/20');}); 
+                    div.classList.add('border-blue-500','bg-blue-600/20'); selectedIdx=i; btn.disabled=false; btn.classList.remove('opacity-50','cursor-not-allowed'); }; 
+                cont.appendChild(div); 
+            }); 
+            o.style.display='flex'; 
+        }
+        
+        window.handleQuizSubmit = function(){ 
+            let btn=document.getElementById('q-btn'), fb=document.getElementById('quiz-feedback'), p=players[turn]; 
+            if(btn.innerText==='继续游戏'){ document.getElementById('quiz-overlay').style.display='none'; finishTurn(); return; } 
+            let sel=currentQuizPool[selectedIdx], nodes=document.getElementById('q-options').children; 
+            let tileData = gameData[p.pos];
+            let correctAnsText = tileData.options[tileData.correctIdx];
+            let selectedText = sel.text;
+            let isCorrect = sel.isCorrect;
+            
+            p.answers.push({
+                question: tileData.title,
+                selected: selectedText,
+                correct: isCorrect,
+                correctAnswer: correctAnsText
+            });
+            
+            fb.classList.remove('hidden'); 
+            if(isCorrect){ 
+                p.score+=tileData.score; 
+                nodes[selectedIdx].classList.add('bg-green-600','border-green-400'); 
+                fb.innerText='✅ 回答正确！'; 
+                btn.innerText='继续游戏';
+                updateUI();
+            } else { 
+                nodes[selectedIdx].classList.add('bg-rose-600','border-rose-400'); 
+                fb.innerText='❌ 答错！正确答案是：' + correctAnsText; 
+                currentQuizPool.forEach((opt,i)=>{ if(opt.isCorrect) nodes[i].classList.add('border-green-400','bg-green-600/20'); }); 
+                btn.innerText='继续游戏';
+                updateUI();
+                btn.disabled = true;
+                setTimeout(() => {
+                    document.getElementById('quiz-overlay').style.display = 'none';
+                    immediatePenalty();
+                }, 1500);
+            } 
+        };
+        
+        function immediatePenalty() {
+            if (isPenaltyActive) return;
+            if (penaltyTimer) clearInterval(penaltyTimer);
+            isPenaltyActive = true;
+            isMoving = true;
+            document.getElementById('roll-btn').disabled = true;
+            
+            const overlay = document.getElementById('penalty-overlay');
+            const countdownEl = document.getElementById('penalty-countdown');
+            overlay.style.display = 'flex';
+            let seconds = 5;
+            countdownEl.innerText = seconds;
+            
+            penaltyTimer = setInterval(() => {
+                seconds--;
+                countdownEl.innerText = seconds;
+                if (seconds <= 0) {
+                    clearInterval(penaltyTimer);
+                    penaltyTimer = null;
+                    overlay.style.display = 'none';
+                    isPenaltyActive = false;
+                    isMoving = false;
+                    finishTurn();
+                }
+            }, 1000);
+        }
+        
+        function finishTurn(){ 
+            if(players.every(p=>p.finished)){ clearInterval(timerInterval); showFinalResults(); return; } 
+            let n=(turn+1)%players.length; 
+            while(players[n].finished) n=(n+1)%players.length; 
+            turn=n; 
+            isMoving=false; 
+            document.getElementById('roll-btn').disabled=false; 
+            updateUI(); 
+            updateGuideStep(2); 
+        }
+        
+        function updateUI(){ 
+            let s=document.getElementById('game-stage'), r=s.getBoundingClientRect(); 
+            let off=[{x:0.1,y:0.1},{x:0.5,y:0.1},{x:0.1,y:0.5},{x:0.5,y:0.5}]; 
+            players.forEach((p,i)=>{ 
+                document.getElementById(`s${p.id}`).innerText=p.score; 
+                document.getElementById(`s${p.id}-box`).classList.toggle('active-player-glow',turn===i&&!p.finished); 
+                let tile=document.getElementById(`tile-${p.pos}`), tok=document.getElementById(p.el); 
+                if(tile&&tok){ let tr=tile.getBoundingClientRect(), o=off[i]; 
+                    tok.style.top=(tr.top-r.top+tr.height*o.y-20)+'px'; 
+                    tok.style.left=(tr.left-r.left+tr.width*o.x-20)+'px'; 
+                } 
+            }); 
+            let lab=document.getElementById('p-label'); 
+            if(players[turn]){ lab.innerText=`⚡ P${players[turn].id} 回合`; lab.style.backgroundColor=players[turn].color; } 
+        }
+        
+        function renderBoard(){ 
+            let g=document.getElementById('board-grid'); g.innerHTML=''; 
+            let m=Array(ROWS).fill().map(()=>Array(COLS).fill(null)), x=0,y=0,dx=1,dy=0; 
+            for(let i=0;i<TOTAL_TILES;i++){ m[y][x]=gameData[i]; 
+                if(dx===1&&x===COLS-1){dx=0;dy=1;} else if(dy===1&&y===ROWS-1){dx=-1;dy=0;} else if(dx===-1&&x===0){dx=0;dy=-1;} 
+                x+=dx; y+=dy; 
+            } 
+            for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){ 
+                let d=m[r][c], div=document.createElement('div'); 
+                if(!d) div.className='tile empty'; 
+                else { 
+                    div.id=`tile-${d.id}`; 
+                    div.className=`tile ${d.id===0?'tile-start':''}`; 
+                    const labelText = d.id === 0 ? '起点' : `挑战${d.id}`;
+                    div.innerHTML=`<div class="tile-icon">${d.icon||'📍'}</div><div class="tile-label">${labelText}</div>`; 
+                } 
+                g.appendChild(div); 
+            } 
+        }
+
+        // 展示结果
+        function showFinalResults(){
+            players.forEach(p => {
+                p.correctCount = p.answers.filter(a => a.correct).length;
+                p.wrongCount = p.answers.length - p.correctCount;
+            });
+            let sorted = [...players].sort((a,b) => {
+                if(b.correctCount !== a.correctCount) return b.correctCount - a.correctCount;
+                return a.time - b.time;
+            });
+            let winner = sorted[0];
+            
+            let winnerDiv = document.getElementById('winner-announce');
+            winnerDiv.innerHTML = `
+                <div class="flex items-center justify-center gap-3 text-2xl">
+                    <span class="text-4xl">🏆</span>
+                    <span class="font-black text-yellow-300">P${winner.id} 获胜！</span>
+                    <span class="text-4xl">🏆</span>
+                </div>
+                <p class="text-slate-300 mt-2">答对 ${winner.correctCount} 题 · 用时 ${formatTime(winner.time)}</p>
+            `;
+            
+            let container = document.getElementById('detail-container');
+            container.innerHTML = '';
+            sorted.forEach((p, idx) => {
+                let card = document.createElement('div');
+                card.className = `bg-slate-900/80 rounded-2xl p-5 border ${p.id === winner.id ? 'winner-highlight border-yellow-400' : 'border-slate-700'}`;
+                let headerHtml = `
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full flex items-center justify-center text-xl font-black" style="background:${p.color}">${p.id}</div>
+                            <div><h3 class="font-bold text-lg">玩家 ${p.id}</h3><div class="text-xs text-slate-400">总分 ${p.score} · 答对 ${p.correctCount} / ${p.answers.length}</div></div>
+                        </div>
+                        <div class="text-right"><div class="text-sm text-slate-300">⏱️ ${formatTime(p.time)}</div>${idx===0?'<span class="inline-block bg-yellow-500 text-black text-xs px-3 py-1 rounded-full font-black mt-1">🥇 第一名</span>':''}</div>
+                    </div>`;
+                let tableHtml = p.answers.length ? `
+                    <table class="result-table w-full text-sm">
+                        <thead class="text-slate-400 text-xs uppercase"><tr><th class="text-left">题目</th><th class="text-left">你的答案</th><th class="text-left">正确答案</th><th class="text-center">结果</th></tr></thead>
+                        <tbody>${p.answers.map(a => `<tr><td class="max-w-[200px] truncate">${a.question}</td><td>${a.selected}</td><td>${a.correctAnswer}</td><td class="text-center">${a.correct ? '<span class="correct-badge">✔️ 正确</span>' : '<span class="wrong-badge">❌ 错误</span>'}</td></tr>`).join('')}</tbody>
+                    </table>` : '<p class="text-slate-500 text-sm italic">未回答任何题目</p>';
+                card.innerHTML = headerHtml + tableHtml;
+                container.appendChild(card);
+            });
+            
+            pdfDownloaded = false;
+            const closeBtn = document.getElementById('close-finish-btn');
+            const replayBtn = document.getElementById('replay-finish-btn');
+            closeBtn.disabled = true;
+            replayBtn.disabled = true;
+            closeBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            replayBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            
+            openPanel('finish-modal');
+        }
+
+        // PDF下载 (保持不变)
+        window.downloadTranscriptPDF = async function() {
+            const downloadBtn = document.getElementById('download-pdf-btn');
+            downloadBtn.disabled = true;
+            downloadBtn.innerText = '⏳ 生成PDF中...';
+            
+            try {
+                const sortedPlayers = [...players].sort((a,b) => {
+                    const aCorrect = a.answers.filter(ans => ans.correct).length;
+                    const bCorrect = b.answers.filter(ans => ans.correct).length;
+                    if(bCorrect !== aCorrect) return bCorrect - aCorrect;
+                    return a.time - b.time;
+                });
+                const winner = sortedPlayers[0];
+                
+                const printDiv = document.createElement('div');
+                printDiv.style.cssText = `
+                    width: 800px; 
+                    padding: 30px 25px; 
+                    background: white; 
+                    font-family: 'Arial', 'Microsoft YaHei', sans-serif; 
+                    color: #1e293b;
+                    box-sizing: border-box;
+                `;
+                
+                let html = `
+                    <h1 style="text-align:center; font-size:28px; margin:0 0 20px; font-weight:bold;">🏆 大富翁游戏成绩单</h1>
+                    <div style="text-align:center; margin-bottom:30px; padding:16px; background:#fef9c3; border-radius:12px; border:1px solid #facc15;">
+                        <div style="font-size:22px; font-weight:bold;">🥇 获胜者：玩家 ${winner.id}</div>
+                        <div style="margin-top:8px; font-size:15px;">答对 ${winner.answers.filter(a=>a.correct).length} 题 · 用时 ${formatTime(winner.time)}</div>
+                    </div>
+                `;
+                
+                sortedPlayers.forEach((p, idx) => {
+                    const correctCount = p.answers.filter(a => a.correct).length;
+                    html += `
+                        <div style="margin-bottom:32px; border:2px solid ${p.id === winner.id ? '#fbbf24' : '#cbd5e1'}; border-radius:16px; padding:20px; background:${p.id === winner.id ? '#fffbeb' : '#f8fafc'};">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                                <div style="display:flex; align-items:center; gap:12px;">
+                                    <div style="width:40px; height:40px; border-radius:50%; background:${p.color}; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:20px;">${p.id}</div>
+                                    <div>
+                                        <h3 style="font-size:18px; margin:0 0 4px; font-weight:bold;">玩家 ${p.id}</h3>
+                                        <div style="font-size:14px; color:#475569;">总分 ${p.score} · 答对 ${correctCount} / ${p.answers.length}</div>
+                                    </div>
+                                </div>
+                                <div style="text-align:right;">
+                                    <div style="font-size:16px; font-weight:500;">⏱️ ${formatTime(p.time)}</div>
+                                    ${idx === 0 ? '<span style="display:inline-block; background:#eab308; color:black; padding:4px 14px; border-radius:20px; font-weight:bold; font-size:14px; margin-top:4px;">第一名</span>' : ''}
+                                </div>
+                            </div>
+                    `;
+                    
+                    if(p.answers.length) {
+                        html += `
+                            <table style="width:100%; border-collapse:collapse; font-size:14px; table-layout:fixed; word-break:break-word; border:1px solid #cbd5e1;">
+                                <thead>
+                                    <tr style="background:#e2e8f0;">
+                                        <th style="padding:12px 8px; text-align:left; border-bottom:2px solid #94a3b8; width:38%;">题目</th>
+                                        <th style="padding:12px 8px; text-align:left; border-bottom:2px solid #94a3b8; width:20%;">你的答案</th>
+                                        <th style="padding:12px 8px; text-align:left; border-bottom:2px solid #94a3b8; width:22%;">正确答案</th>
+                                        <th style="padding:12px 8px; text-align:center; border-bottom:2px solid #94a3b8; width:20%;">结果</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${p.answers.map(a => `
+                                        <tr style="border-bottom:1px solid #cbd5e1;">
+                                            <td style="padding:12px 8px; vertical-align:top;">${a.question}</td>
+                                            <td style="padding:12px 8px; vertical-align:top;">${a.selected}</td>
+                                            <td style="padding:12px 8px; vertical-align:top;">${a.correctAnswer}</td>
+                                            <td style="padding:12px 8px; text-align:center; vertical-align:top;">
+                                                <span style="display:inline-block; padding:5px 14px; border-radius:20px; background:${a.correct ? '#dcfce7' : '#fee2e2'}; color:${a.correct ? '#166534' : '#991b1b'}; font-weight:bold; font-size:13px;">
+                                                    ${a.correct ? '✔️ 正确' : '❌ 错误'}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        `;
+                    } else {
+                        html += '<p style="color:#64748b; font-style:italic; padding:8px;">未回答任何题目</p>';
+                    }
+                    html += '</div>';
+                });
+                
+                printDiv.innerHTML = html;
+                document.body.appendChild(printDiv);
+                
+                const canvas = await html2canvas(printDiv, {
+                    scale: 3,
+                    backgroundColor: '#ffffff',
+                    allowTaint: true,
+                    useCNAME: true,
+                    logging: false
+                });
+                
+                document.body.removeChild(printDiv);
+                
+                const imgData = canvas.toDataURL('image/png');
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = pdf.internal.pageSize.getHeight();
+                const imgProps = pdf.getImageProperties(imgData);
+                const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+                
+                let heightLeft = imgHeight;
+                let position = 0;
+                
+                pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+                heightLeft -= pdfHeight;
+                
+                while (heightLeft > 0) {
+                    position = heightLeft - imgHeight;
+                    pdf.addPage();
+                    pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+                    heightLeft -= pdfHeight;
+                }
+                
+                pdf.save('大富翁成绩单.pdf');
+                
+                pdfDownloaded = true;
+                document.getElementById('close-finish-btn').disabled = false;
+                document.getElementById('replay-finish-btn').disabled = false;
+                document.getElementById('close-finish-btn').classList.remove('opacity-50', 'cursor-not-allowed');
+                document.getElementById('replay-finish-btn').classList.remove('opacity-50', 'cursor-not-allowed');
+                
+            } catch (error) {
+                console.error('PDF生成失败:', error);
+                alert('PDF生成失败，请重试。');
+            } finally {
+                downloadBtn.disabled = false;
+                downloadBtn.innerText = '📄 下载成绩单 (PDF)';
+            }
+        };
+
+        window.tryCloseFinishModal = function() {
+            if (!pdfDownloaded) { alert('请先下载成绩单PDF！'); return; }
+            closePanel('finish-modal');
+        };
+
+        window.tryReplay = function() {
+            if (!pdfDownloaded) { alert('请先下载成绩单PDF！'); return; }
+            softResetGame();
+        };
+
+        // ---------- 编辑器功能 (完整保留) ----------
+        function populateEditor(){
+            const list = document.getElementById('editor-list'); list.innerHTML = '';
+            gameData.forEach((d,i)=>{
+                const tr=document.createElement('tr'); tr.className="border-b border-white/5";
+                let optsHtml=''; ['A','B','C','D'].forEach((l,idx)=>{ optsHtml+=`<option value="${idx}" ${idx===d.correctIdx?'selected':''}>${l}</option>`; });
+                tr.innerHTML=`<td class="p-2 text-slate-500 text-center">${i}</td><td class="p-2"><input value="${d.title.replace(/"/g,'&quot;')}" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="title" data-idx="${i}"></td><td class="p-2"><input value="${d.options[0]||''}" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt0" data-idx="${i}"></td><td class="p-2"><input value="${d.options[1]||''}" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt1" data-idx="${i}"></td><td class="p-2"><input value="${d.options[2]||''}" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt2" data-idx="${i}"></td><td class="p-2"><input value="${d.options[3]||''}" class="w-full bg-transparent border border-slate-600 rounded px-2 py-1 text-white" data-field="opt3" data-idx="${i}"></td><td class="p-2"><select class="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs" data-field="answer" data-idx="${i}">${optsHtml}</select></td><td class="p-2"><input type="number" value="${d.score}" class="w-16 bg-transparent border border-slate-600 rounded px-2 py-1 text-white text-center" data-field="score" data-idx="${i}"></td>`;
+                list.appendChild(tr);
+            });
+        }
+        
+        window.toggleBatchImport = () => {
+            const p = document.getElementById('batch-import-panel');
+            p.style.display = p.style.display === 'none' ? 'block' : 'none';
+        };
+        window.clearBatchTextarea = () => {
+            document.getElementById('batch-data-textarea').value = '';
+            document.getElementById('batch-feedback').innerText = '';
+        };
+        window.parseAndImportBatch = function() {
+            const textarea = document.getElementById('batch-data-textarea');
+            const feedback = document.getElementById('batch-feedback');
+            const raw = textarea.value.trim();
+            if (!raw) { feedback.innerText = '❌ 请粘贴数据'; return; }
+            const lines = raw.split('\n');
+            const imported = [];
+            let errCount = 0;
+            const letterMap = { 'A':0, 'B':1, 'C':2, 'D':3 };
+            lines.forEach(line => {
+                line = line.trim();
+                if (!line) return;
+                const parts = line.split('\t');
+                if (parts.length < 7) { errCount++; return; }
+                const title = parts[0].trim();
+                const opts = [parts[1].trim(), parts[2].trim(), parts[3].trim(), parts[4].trim()];
+                const ansRaw = parts[5].trim();
+                const score = parseInt(parts[6].trim());
+                let ansIdx;
+                const numVal = parseInt(ansRaw);
+                if (!isNaN(numVal) && numVal>=0 && numVal<=3) ansIdx = numVal;
+                else if (letterMap.hasOwnProperty(ansRaw.toUpperCase())) ansIdx = letterMap[ansRaw.toUpperCase()];
+                else { errCount++; return; }
+                if (isNaN(score)) { errCount++; return; }
+                imported.push({ title, options: opts, correctIdx: ansIdx, score });
+            });
+            let applied = 0;
+            for (let i=0; i<imported.length; i++) {
+                const targetId = i+1;
+                if (targetId >= gameData.length) break;
+                const item = imported[i];
+                gameData[targetId] = { ...gameData[targetId], title: item.title, options: item.options, correctIdx: item.correctIdx, score: item.score };
+                applied++;
+            }
+            feedback.innerText = `✅ 成功导入 ${applied} 条，错误 ${errCount} 行`;
+            populateEditor();
+        };
+
+        window.saveGameData = function(){
+            const rows=document.querySelectorAll('#editor-list tr'); const newData=JSON.parse(JSON.stringify(gameData));
+            rows.forEach(row=>{
+                const idx=parseInt(row.querySelector('[data-field="title"]')?.dataset.idx??-1); if(idx===-1)return;
+                const title=row.querySelector('[data-field="title"]').value;
+                const opts=[row.querySelector('[data-field="opt0"]').value,row.querySelector('[data-field="opt1"]').value,row.querySelector('[data-field="opt2"]').value,row.querySelector('[data-field="opt3"]').value];
+                const ans=parseInt(row.querySelector('[data-field="answer"]').value);
+                const score=parseInt(row.querySelector('[data-field="score"]').value)||0;
+                newData[idx]={...newData[idx],title,options:opts,correctIdx:ans,score};
+            });
+            gameData=newData; localStorage.setItem('monopolyData',JSON.stringify(gameData)); renderBoard(); closePanel('editor-modal'); alert('✅ 题库已保存！');
+        };
+        window.applyBackground = ()=>{ let u=document.getElementById('bg-input').value; if(u){ document.getElementById('main-bg-image').src=u; localStorage.setItem('monopolyBg',u); closePanel('bg-modal'); } };
+        
+        window.onload = ()=>{
+            let bg=localStorage.getItem('monopolyBg'); if(bg) document.getElementById('main-bg-image').src=bg;
+            renderBoard();
+            if(localStorage.getItem('systemLocked')==='true') document.getElementById('lock-screen').style.display='flex';
+        };
+    })();
+</script>
+
+</body></html>
